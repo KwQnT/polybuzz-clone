@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../services/character_card_service.dart';
+import '../../utils/image_utils.dart';
 import '../character_editor_screen.dart';
 import '../group_create_screen.dart';
 
@@ -117,20 +118,13 @@ Future<void> showCharacterMenu(BuildContext context, Character character) async 
   }
 }
 
-/// 导出角色为 SillyTavern 角色卡文件（可选 JSON 或 PNG）。
+/// 导出角色为 SillyTavern 角色卡文件（JSON，或 PNG 图片卡）。
+/// PNG 卡：头像自动转 PNG；头像为空/不支持转换则提示不支持；也可另选图片导出。
 Future<void> _exportCharacterCard(BuildContext context, AppState state, Character c) async {
   try {
     final gwb = await state.worldbookFor(null);
     final selected = gwb.where((e) => c.worldbookIds.contains(e.id)).toList();
     final jsonStr = CharacterCardService.toV2Json(c, worldbook: selected);
-    // 判断头像是否为 PNG 文件，可导出为 PNG 角色卡
-    Uint8List? avatarBytes;
-    if (c.avatar.isNotEmpty && !c.avatar.startsWith('asset:') && File(c.avatar).existsSync()) {
-      try {
-        final b = await File(c.avatar).readAsBytes();
-        if (b.length >= 8 && b[0] == 0x89 && b[1] == 0x50) avatarBytes = b;
-      } catch (_) {}
-    }
     final fmt = await showDialog<String>(
       context: context,
       builder: (d) => SimpleDialog(
@@ -140,32 +134,21 @@ Future<void> _exportCharacterCard(BuildContext context, AppState state, Characte
             onPressed: () => Navigator.pop(d, 'json'),
             child: const Text('导出为 JSON 角色卡'),
           ),
-          if (avatarBytes != null)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(d, 'png'),
-              child: const Text('导出为 PNG 角色卡（含头像）'),
-            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(d, 'pngAvatar'),
+            child: const Text('导出为 PNG 角色卡（用头像）'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(d, 'pngPick'),
+            child: const Text('导出为 PNG 角色卡（选择图片）'),
+          ),
           SimpleDialogOption(onPressed: () => Navigator.pop(d), child: const Text('取消')),
         ],
       ),
     );
     if (fmt == null || !context.mounted) return;
-    if (fmt == 'png' && avatarBytes != null) {
-      final png = CharacterCardService.toPng(avatarBytes, jsonStr);
-      if (png == null) {
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PNG 导出失败')));
-        return;
-      }
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: '导出 PNG 角色卡',
-        fileName: '${c.name}.png',
-        type: FileType.any,
-        bytes: png,
-      );
-      if (path != null && path.isNotEmpty && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PNG 角色卡已导出')));
-      }
-    } else {
+
+    if (fmt == 'json') {
       final path = await FilePicker.platform.saveFile(
         dialogTitle: '导出 JSON 角色卡',
         fileName: '${c.name}.json',
@@ -175,6 +158,78 @@ Future<void> _exportCharacterCard(BuildContext context, AppState state, Characte
       if (path != null && path.isNotEmpty && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('JSON 角色卡已导出')));
       }
+      return;
+    }
+
+    // ---- PNG 卡：先取得原始图片字节 ----
+    Uint8List? srcBytes;
+    if (fmt == 'pngAvatar') {
+      if (c.avatar.isEmpty || c.avatar.startsWith('asset:')) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('不支持：该角色没有可用的头像图片')));
+        }
+        return;
+      }
+      try {
+        final f = File(c.avatar);
+        if (!f.existsSync()) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('不支持：头像文件不存在')));
+          }
+          return;
+        }
+        srcBytes = await f.readAsBytes();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('不支持：读取头像失败')));
+        }
+        return;
+      }
+    } else {
+      // 另选图片
+      final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+      if (r == null || r.files.isEmpty) return;
+      final f = r.files.first;
+      srcBytes = f.bytes;
+      if ((srcBytes == null || srcBytes.isEmpty) && (f.path?.isNotEmpty ?? false)) {
+        try {
+          srcBytes = await File(f.path!).readAsBytes();
+        } catch (_) {}
+      }
+      if (srcBytes == null || srcBytes.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('不支持：无法读取所选图片')));
+        }
+        return;
+      }
+    }
+
+    // ---- 统一转换为 PNG ----
+    final pngBytes = await convertImageToPng(srcBytes);
+    if (pngBytes == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('不支持：该图片无法转换为 PNG')));
+      }
+      return;
+    }
+    final cardPng = CharacterCardService.toPng(pngBytes, jsonStr);
+    if (cardPng == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PNG 角色卡生成失败')));
+      }
+      return;
+    }
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: '导出 PNG 角色卡',
+      fileName: '${c.name}.png',
+      type: FileType.any,
+      bytes: cardPng,
+    );
+    if (path != null && path.isNotEmpty && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PNG 角色卡已导出')));
     }
   } catch (_) {}
 }

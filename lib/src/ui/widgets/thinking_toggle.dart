@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
 
-/// 紧凑的"思考"折叠按钮：只有"思考 ›"，点击展开/收起
+/// 打字机输出时的"思考中"提示：与"思考 ›"同格式，显示在消息左上角。
+class ThinkingIndicator extends StatelessWidget {
+  const ThinkingIndicator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(strokeWidth: 1.6, color: scheme.primary),
+          ),
+          const SizedBox(width: 5),
+          Text('思考中', style: TextStyle(fontSize: 12, color: scheme.primary)),
+        ],
+      ),
+    );
+  }
+}
+
 class ThinkingToggle extends StatefulWidget {
   final String reasoning;
   const ThinkingToggle({super.key, required this.reasoning});

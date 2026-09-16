@@ -84,13 +84,16 @@ class _AiRewriteButtonState extends State<AiRewriteButton> {
       _rewriting = true;
       _rewritten = null;
     });
+    // 清空输入框内容，此时输入框会显示"正在改写…"占位提示
+    widget.controller.clear();
     widget.onRewriting?.call(true);
     try {
       final result = await widget.rewrite(text);
       if (!mounted) return;
       widget.onRewriting?.call(false);
       if (_cancel) {
-        // 已取消：输入框保持原消息（从未被改动）
+        // 已取消：还原原消息
+        widget.controller.text = _original;
         setState(() {
           _rewriting = false;
           _rewritten = null;
@@ -105,6 +108,7 @@ class _AiRewriteButtonState extends State<AiRewriteButton> {
     } catch (_) {
       if (!mounted) return;
       widget.onRewriting?.call(false);
+      widget.controller.text = _original;
       setState(() {
         _rewriting = false;
         _rewritten = null;
@@ -114,9 +118,10 @@ class _AiRewriteButtonState extends State<AiRewriteButton> {
 
   void _undo() {
     if (_rewriting) {
-      // 取消改写：输入框保持原消息
+      // 取消改写：还原原消息
       _cancel = true;
       widget.onRewriting?.call(false);
+      widget.controller.text = _original;
       setState(() {
         _rewriting = false;
         _rewritten = null;
@@ -134,7 +139,8 @@ class _AiRewriteButtonState extends State<AiRewriteButton> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    if (controller.text.trim().isEmpty) return const SizedBox.shrink();
+    // 改写中即使输入框已清空也要显示按钮（可点击"撤销"取消改写）
+    if (!_rewriting && controller.text.trim().isEmpty) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     final mainColor = widget.color ?? scheme.primary;
     final isUndo = _rewriting || (controller.text == _rewritten && _rewritten != null);

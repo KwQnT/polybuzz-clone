@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
+import '../services/memory_helper.dart';
 import '../services/prompt_builder.dart';
 import '../services/settings_resolver.dart';
 import '../utils/colors.dart';
@@ -18,6 +20,7 @@ import 'worldbook_screen.dart';
 import 'worldbook_picker.dart';
 import 'widgets/search_history_screen.dart';
 import 'widgets/ai_rewrite_button.dart';
+import 'widgets/attachment_strip.dart';
 
 class GroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -46,6 +49,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   bool _programmaticJump = false;
   int _searchReturnIndex = -1;
   bool _inputRewriting = false;
+  final List<PendingAttachment> _attachments = [];
 
   @override
   void initState() {
@@ -112,31 +116,108 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       ? resolveSettings(context.read<AppState>().settings)
       : resolveGroup(context.read<AppState>().settings, _group!);
 
+  /// 把附件与文字合并成一条消息内容。
+  String _composeContent(String text) {
+    final sb = StringBuffer();
+    for (final a in _attachments) {
+      sb.writeln(a.isImage ? '［图片：${a.path}］' : '［文件：${a.path}］');
+    }
+    if (text.isNotEmpty) sb.write(text);
+    return sb.toString();
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _streaming) return;
+    if ((text.isEmpty && _attachments.isEmpty) || _streaming) return;
     final state = context.read<AppState>();
     final g = _group;
     if (g == null) return;
 
     final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final content = _composeContent(text);
     final userMsg = ChatMessage(
       id: id,
       groupId: g.id,
       role: 'user',
-      content: text,
+      content: content,
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
     await state.insertMessage(userMsg);
     setState(() {
       _messages.add(userMsg);
       _input.clear();
+      _attachments.clear();
     });
     _jumpToBottom();
 
     if (g.replyMode == 'designated') return;
 
     await _triggerReplies(state, g);
+  }
+
+  /// 添加图片附件
+  Future<void> _addImage() async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: false);
+    if (r == null || r.files.isEmpty) return;
+    final f = r.files.first;
+    final path = f.path ?? '';
+    if (path.isEmpty) return;
+    setState(() => _attachments.add(PendingAttachment(path: path, name: f.name, isImage: true)));
+  }
+
+  /// 添加文件附件
+  Future<void> _addFile() async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: false);
+    if (r == null || r.files.isEmpty) return;
+    final f = r.files.first;
+    final path = f.path ?? '';
+    if (path.isEmpty) return;
+    setState(() => _attachments.add(PendingAttachment(path: path, name: f.name, isImage: false)));
+  }
+
+  /// 左下角"＋"按钮：展开小面板（切换模型 / 添加图片 / 选择文件）
+  Future<void> _showPlusMenu(AppState state, ChatGroup g) async {
+    if (_streaming) return;
+    final scheme = Theme.of(context).colorScheme;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.model_training, size: 20, color: scheme.primary),
+                title: const Text('切换模型', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'model'),
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.image_outlined, size: 20, color: scheme.primary),
+                title: const Text('添加图片', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'image'),
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.attach_file, size: 20, color: scheme.primary),
+                title: const Text('选择文件', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'file'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'model') {
+      await _showGroupModelSwitch(state, g);
+    } else if (choice == 'image') {
+      await _addImage();
+    } else if (choice == 'file') {
+      await _addFile();
+    }
   }
 
   Future<void> _autoAll(AppState state, ChatGroup g) async {
@@ -591,8 +672,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       });
     }
     _jumpToBottom();
-    if (g.autoMemoryEvery > 0 && g.autoMemoryEvery <= _messages.length &&
-        _messages.length % g.autoMemoryEvery == 0 && state.settings.memoryEnabled) {
+    // 自动长记忆：按"角色回复条数"计数触发（避免开场白/用户消息导致奇偶错位）
+    final every = g.autoMemoryEvery > 0 ? g.autoMemoryEvery : state.settings.autoMemoryEvery;
+    final turns = _messages.where((m) => m.role == 'assistant').length;
+    if (every > 0 && turns > 0 && turns % every == 0 && state.settings.memoryEnabled) {
       _autoMemory(state, g);
     }
   }
@@ -603,32 +686,39 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     final history = _messages.where((m) => m.role != 'system').toList();
     if (history.isEmpty) return;
     final tail = history.length > 8 ? history.sublist(history.length - 8) : history;
+    // 整理成一段文本，避免模型把它当成对话续写
+    final transcript = MemoryHelper.buildTranscript(
+      tail.map((m) {
+        final who = m.role == 'user'
+            ? (m.senderCharacterId != null ? (_members[m.senderCharacterId]?.name ?? '我') : '我')
+            : (_members[m.senderCharacterId]?.name ?? '角色');
+        return (who, m.content);
+      }).toList(),
+    );
     try {
       final t = (await ApiClient().completeChat(
         baseUrl: provider.baseUrl,
         apiKey: provider.apiKey,
         model: provider.model,
-        messages: [
-          {'role': 'system', 'content': '总结最近群聊里值得长期记住的关键信息，用一句话陈述；若无则输出"无"。'},
-          for (final m in tail)
-            {'role': m.role == 'user' ? 'user' : 'assistant', 'content': '${m.senderCharacterId ?? '我'}：${m.content}'},
-        ],
+        messages: MemoryHelper.buildMessages(transcript),
+        temperature: 0.3,
       )).trim();
-      if (t.isNotEmpty && t != '无' && t != '"无"') {
+      if (MemoryHelper.isValid(t)) {
+        final text = MemoryHelper.clean(t);
         final groupWhole = g.memoryMode == 'whole';
         if (groupWhole) {
           await state.addMemory(MemoryItem(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
             characterId: 'group_${g.id}',
-            content: t,
+            content: text,
           ));
         } else {
-          // separate/synced：整体记忆按每个成员各记一条（synced 会与私聊同步到同一 key）
+          // separate/synced：每个成员各记一条（synced 与私聊共用同一 key，实现同步）
           for (final m in _members.values) {
             await state.addMemory(MemoryItem(
-              id: DateTime.now().microsecondsSinceEpoch.toString() + '_${m.id}',
+              id: '${DateTime.now().microsecondsSinceEpoch}_${m.id}',
               characterId: m.id,
-              content: t,
+              content: text,
             ));
           }
         }
@@ -901,6 +991,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           id: 'st', role: 'assistant', content: _streamText, createdAt: 0,
           groupId: g.id, senderCharacterId: sender?.id,
         );
+        final streamTop = _streamReasoning.isNotEmpty
+            ? ThinkingToggle(reasoning: _streamReasoning)
+            : (_streaming ? const ThinkingIndicator() : null);
         return MessageBubble(
           message: st,
           isUser: false,
@@ -909,6 +1002,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           showAvatar: showCharAvatar,
           isCurrent: true,
           fontScale: state.settings.fontSize,
+          topContent: streamTop,
         );
       },
     );
@@ -1066,23 +1160,34 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            InkWell(
-              onTap: _streaming ? null : () => _showGroupModelSwitch(state, g),
-              child: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.model_training, size: 22),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AttachmentStrip(
+                items: _attachments,
+                scale: state.settings.fontSize,
+                onRemove: (i) => setState(() => _attachments.removeAt(i)),
               ),
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            Row(
+              children: [
+                InkWell(
+                  onTap: _streaming ? null : () => _showPlusMenu(state, g),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.add, size: 22, color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AiRewriteButton(
@@ -1122,11 +1227,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.send, size: 24),
-              onPressed: (_streaming || _generating || _inputRewriting) ? null : _send,
-              visualDensity: VisualDensity.compact,
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.send, size: 24),
+                  onPressed: (_streaming || _generating || _inputRewriting) ? null : _send,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ),
           ],
         ),

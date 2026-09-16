@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import '../services/api_client.dart';
+import '../services/memory_helper.dart';
 
 class MemoryScreen extends StatefulWidget {
   final String characterId;
@@ -25,7 +26,13 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
   Future<void> _load() async {
     final e = await context.read<AppState>().memoriesFor(widget.characterId);
-    if (mounted) setState(() => _items = e);
+    // 置顶的记忆排在最上方（其余按时间）
+    final sorted = List<MemoryItem>.of(e);
+    sorted.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    if (mounted) setState(() => _items = sorted);
   }
 
   /// AI 生成记忆
@@ -54,28 +61,30 @@ class _MemoryScreenState extends State<MemoryScreen> {
     }
     setState(() => _busy = true);
     try {
-      final payload = <Map<String, String>>[
-        {
-          'role': 'system',
-          'content': '读取这段对话，提炼 1~3 条值得长期记住的关键信息（人物关系、偏好、重要约定等），每行一条简短陈述，直接输出，不要解释。'
-        },
-        for (final m in history)
-          {'role': m.role == 'user' ? 'user' : 'assistant', 'content': m.content},
-      ];
+      // 把对话整理成一段文本交给模型"提炼记忆"，而不是当作对话轮次（否则模型会续写）
+      final transcript = MemoryHelper.buildTranscript(
+        history
+            .map((m) => (m.role == 'user' ? '玩家' : '角色', m.content))
+            .toList(),
+      );
       final text = (await ApiClient().completeChat(
         baseUrl: provider.baseUrl,
         apiKey: provider.apiKey,
         model: provider.model,
-        messages: payload,
+        messages: MemoryHelper.buildMessages(transcript),
+        temperature: 0.3,
       )).trim();
-      if (text.isNotEmpty) {
+      if (MemoryHelper.isValid(text)) {
         await state.addMemory(MemoryItem(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           characterId: widget.characterId,
-          content: text,
+          content: MemoryHelper.clean(text),
           pinned: true,
         ));
         await _load();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('没有提炼出可用的记忆')));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败: $e')));

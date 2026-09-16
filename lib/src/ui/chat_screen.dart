@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
+import '../services/memory_helper.dart';
 import '../services/prompt_builder.dart';
 import '../services/settings_resolver.dart';
 import '../state/app_state.dart';
@@ -18,6 +20,7 @@ import 'worldbook_screen.dart';
 import 'worldbook_picker.dart';
 import 'widgets/search_history_screen.dart';
 import 'widgets/ai_rewrite_button.dart';
+import 'widgets/attachment_strip.dart';
 
 class ChatScreen extends StatefulWidget {
   final String characterId;
@@ -50,6 +53,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _programmaticJump = false;
   int _searchReturnIndex = -1;
   bool _inputRewriting = false;
+  final List<PendingAttachment> _attachments = [];
 
   @override
   void initState() {
@@ -131,18 +135,29 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------------- send ----------------
+  /// 把附件与文字合并成一条消息内容。
+  String _composeContent(String text) {
+    final sb = StringBuffer();
+    for (final a in _attachments) {
+      sb.writeln(a.isImage ? '［图片：${a.path}］' : '［文件：${a.path}］');
+    }
+    if (text.isNotEmpty) sb.write(text);
+    return sb.toString();
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _streaming) return;
+    if ((text.isEmpty && _attachments.isEmpty) || _streaming) return;
     final state = context.read<AppState>();
     final session = _session;
     if (session == null) return;
     final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final content = _composeContent(text);
     await state.insertMessage(ChatMessage(
       id: id,
       sessionId: session.id,
       role: 'user',
-      content: text,
+      content: content,
       createdAt: DateTime.now().millisecondsSinceEpoch,
     ));
     setState(() {
@@ -150,10 +165,11 @@ class _ChatScreenState extends State<ChatScreen> {
         id: id,
         sessionId: session.id,
         role: 'user',
-        content: text,
+        content: content,
         createdAt: DateTime.now().millisecondsSinceEpoch,
       ));
       _input.clear();
+      _attachments.clear();
     });
     _jumpToBottom();
     await _streamReply(state);
@@ -225,33 +241,39 @@ class _ChatScreenState extends State<ChatScreen> {
     await _autoMemory(state);
   }
 
-  /// 自动生成长记忆（按设置间隔触发）
+  /// 自动生成长记忆（每 every 条角色回复触发一次）
   Future<void> _autoMemory(AppState state) async {
-    final every = _character != null
-        ? resolveCharacter(state.settings, _character!).autoMemoryEvery
-        : state.settings.autoMemoryEvery;
-    if (!state.settings.memoryEnabled || _messages.length % every != 0) return;
+    final eff = _character != null
+        ? resolveCharacter(state.settings, _character!)
+        : resolveSettings(state.settings);
+    final every = eff.autoMemoryEvery;
+    if (every <= 0 || !eff.memoryEnabled) return;
+    // 用"角色已回复的条数"作为计数，避免开场白导致长度奇偶错位
+    final turns = _messages.where((m) => m.role == 'assistant').length;
+    if (turns == 0 || turns % every != 0) return;
     final provider = _resolveProvider(state);
     if (provider == null || _character == null) return;
     final history = _messages.where((m) => m.role != 'system').toList();
     if (history.isEmpty) return;
-    final payload = <Map<String, String>>[
-      {'role': 'system', 'content': '总结最近对话里值得长期记住的关键信息（关系/偏好/约定），用一句话陈述；若无则输出"无"。'},
-      for (final m in (history.length > 8 ? history.sublist(history.length - 8) : history))
-        {'role': m.role == 'user' ? 'user' : 'assistant', 'content': m.content},
-    ];
+    // 把最近对话整理成"一段文本"交给模型提炼，避免模型把它当成对话续写
+    final tail = history.length > 8 ? history.sublist(history.length - 8) : history;
+    final transcript = MemoryHelper.buildTranscript(
+      tail.map((m) => (m.role == 'user' ? '玩家' : _character!.name, m.content)).toList(),
+    );
+    final payload = MemoryHelper.buildMessages(transcript);
     try {
       final t = (await ApiClient().completeChat(
         baseUrl: provider.baseUrl,
         apiKey: provider.apiKey,
         model: (_character!.model?.isNotEmpty ?? false) ? _character!.model! : provider.model,
         messages: payload,
+        temperature: 0.3,
       )).trim();
-      if (t.isNotEmpty && t != '无' && t != '"无"') {
+      if (MemoryHelper.isValid(t)) {
         await state.addMemory(MemoryItem(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           characterId: _character!.id,
-          content: t,
+          content: MemoryHelper.clean(t),
         ));
         final ms = await state.memoriesFor(_character!.id);
         if (mounted) setState(() => _memories = ms);
@@ -535,6 +557,71 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) _toast('已复制');
   }
 
+  /// 添加图片附件
+  Future<void> _addImage() async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.image, withData: false);
+    if (r == null || r.files.isEmpty) return;
+    final f = r.files.first;
+    final path = f.path ?? '';
+    if (path.isEmpty) return;
+    setState(() => _attachments.add(PendingAttachment(path: path, name: f.name, isImage: true)));
+  }
+
+  /// 添加文件附件
+  Future<void> _addFile() async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: false);
+    if (r == null || r.files.isEmpty) return;
+    final f = r.files.first;
+    final path = f.path ?? '';
+    if (path.isEmpty) return;
+    setState(() => _attachments.add(PendingAttachment(path: path, name: f.name, isImage: false)));
+  }
+
+  /// 左下角"＋"按钮：展开小面板（切换模型 / 添加图片 / 选择文件）
+  Future<void> _showPlusMenu() async {
+    if (_streaming) return;
+    final scheme = Theme.of(context).colorScheme;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.model_training, size: 20, color: scheme.primary),
+                title: const Text('切换模型', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'model'),
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.image_outlined, size: 20, color: scheme.primary),
+                title: const Text('添加图片', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'image'),
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.attach_file, size: 20, color: scheme.primary),
+                title: const Text('选择文件', style: TextStyle(fontSize: 14)),
+                onTap: () => Navigator.pop(ctx, 'file'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'model') {
+      await _showModelSwitch();
+    } else if (choice == 'image') {
+      await _addImage();
+    } else if (choice == 'file') {
+      await _addFile();
+    }
+  }
+
   Future<void> _showModelSwitch() async {
     final state = context.read<AppState>();
     final character = _character;
@@ -801,32 +888,19 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         final streamingMsg = ChatMessage(
           id: 'st', sessionId: _session!.id, role: 'assistant', content: _streamText, createdAt: 0);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_streaming && _streamText.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                    const SizedBox(width: 8),
-                    Text('$c.name 正在思考…', style: const TextStyle(color: Colors.blueGrey)),
-                  ],
-                ),
-              ),
-            if (_streamReasoning.isNotEmpty && state.settings.outputThinking) _reasoningBox(state, c),
-            MessageBubble(
-              message: streamingMsg,
-              isUser: false,
-              avatar: buildCharacterAvatar(context, c, 34),
-              senderName: c.name,
-              showAvatar: showCharAvatar,
-              isCurrent: true,
-              fontScale: state.settings.fontSize,
-            ),
-          ],
+        // 思考中/思考折叠 都放在消息左上角（作为 topContent），与发送后的"思考"格式一致
+        final streamTop = _streamReasoning.isNotEmpty
+            ? ThinkingToggle(reasoning: _streamReasoning)
+            : (_streaming ? const ThinkingIndicator() : null);
+        return MessageBubble(
+          message: streamingMsg,
+          isUser: false,
+          avatar: buildCharacterAvatar(context, c, 34),
+          senderName: c.name,
+          showAvatar: showCharAvatar,
+          isCurrent: true,
+          fontScale: state.settings.fontSize,
+          topContent: streamTop,
         );
       },
     );
@@ -938,65 +1012,79 @@ class _ChatScreenState extends State<ChatScreen> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            InkWell(
-              onTap: _streaming ? null : _showModelSwitch,
-              child: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.model_training, size: 22),
+            // 附件预览（在输入框上方，不发送）
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AttachmentStrip(
+                items: _attachments,
+                scale: state.settings.fontSize,
+                onRemove: (i) => setState(() => _attachments.removeAt(i)),
               ),
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AiRewriteButton(
-                    controller: _input,
-                    rewrite: _rewriteText,
-                    color: Theme.of(context).colorScheme.primary,
-                    fontSize: 10,
-                    onRewriting: (v) => setState(() => _inputRewriting = v),
-                  ),
-                  const SizedBox(height: 2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 56),
-                    child: TextField(
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: 3,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: InputDecoration(
-                        hintText: _inputRewriting ? '正在改写…' : (_generating ? '正在生成…' : '发一条消息…'),
-                        filled: true,
-                        isDense: true,
-                        fillColor: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.black.withValues(alpha: 0.45)
-                            : Colors.white.withValues(alpha: 0.6),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
+            Row(
+              children: [
+                InkWell(
+                  onTap: _streaming ? null : _showPlusMenu,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
                     ),
+                    child: Icon(Icons.add, size: 22, color: Theme.of(context).colorScheme.primary),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.send, size: 24),
-              onPressed: (_streaming || _generating || _inputRewriting) ? null : _send,
-              visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AiRewriteButton(
+                        controller: _input,
+                        rewrite: _rewriteText,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 10,
+                        onRewriting: (v) => setState(() => _inputRewriting = v),
+                      ),
+                      const SizedBox(height: 2),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 56),
+                        child: TextField(
+                          controller: _input,
+                          minLines: 1,
+                          maxLines: 3,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          style: const TextStyle(fontSize: 16),
+                          decoration: InputDecoration(
+                            hintText: _inputRewriting ? '正在改写…' : (_generating ? '正在生成…' : '发一条消息…'),
+                            filled: true,
+                            isDense: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.black.withValues(alpha: 0.45)
+                                : Colors.white.withValues(alpha: 0.6),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.send, size: 24),
+                  onPressed: (_streaming || _generating || _inputRewriting) ? null : _send,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ),
           ],
         ),

@@ -69,13 +69,36 @@ class SearchUtil {
     return spans;
   }
 
-  /// 计算省略位置：按第一个命中词居中截断，保留首尾（两端省略）。
+  /// 计算省略位置：以第一个命中词为参考，保留其两侧上下文（两端省略）。
+  /// 支持多关键词（空格分隔）；若都没命中则从开头截断。
   static String ellipsizeAround(String content, String query, {int maxLen = 80}) {
     if (content.length <= maxLen) return content;
+    final words = query
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     final lower = content.toLowerCase();
-    final idx = lower.indexOf(query.trim().toLowerCase());
-    final start = idx < 0 ? 0 : (idx - maxLen ~/ 3).clamp(0, content.length - maxLen);
-    final end = (start + maxLen).clamp(content.length, content.length);
-    return '${start > 0 ? '…' : ''}${content.substring(start, end)}${end < content.length ? '…' : ''}';
+    // 找最靠前的命中词位置
+    int hit = -1;
+    for (final w in words) {
+      final i = lower.indexOf(w);
+      if (i >= 0 && (hit == -1 || i < hit)) hit = i;
+    }
+    int start;
+    if (hit < 0) {
+      start = 0;
+    } else {
+      // 命中词前保留约 1/3 宽度，确保命中词可见
+      start = hit - maxLen ~/ 3;
+      if (start < 0) start = 0;
+      if (start + maxLen > content.length) start = content.length - maxLen;
+      if (start < 0) start = 0;
+    }
+    final end = (start + maxLen).clamp(0, content.length);
+    final head = start > 0 ? '…' : '';
+    final tail = end < content.length ? '…' : '';
+    return '$head${content.substring(start, end)}$tail';
   }
 }
