@@ -14,7 +14,7 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.example.myapp"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
