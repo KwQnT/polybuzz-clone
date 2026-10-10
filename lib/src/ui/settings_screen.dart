@@ -20,27 +20,27 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: const Text('Настройки')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: const [
-          _Section('接口与 Key'),
+          _Section('API и ключ'),
           ProvidersSection(),
           Divider(),
-          _Section('外观'),
+          _Section('Внешний вид'),
           _ThemeSection(),
           Divider(),
-          _Section('聊天气泡'),
+          _Section('Пузыри чата'),
           _BubbleSection(),
           Divider(),
-          _Section('你的身份'),
+          _Section('Ваша роль'),
           _PersonaSection(),
           _AvatarSection(),
           Divider(),
-          _Section('对话与记忆'),
+          _Section('Диалог и память'),
           _ChatSettingsSection(),
           Divider(),
-          _Section('数据'),
+          _Section('Данные'),
           _DataSection(),
           Divider(),
           _HelpSection(),
@@ -75,8 +75,8 @@ class _ProvidersSectionState extends State<ProvidersSection> {
       return Card(
         child: ListTile(
           leading: const Icon(Icons.key),
-          title: const Text('尚未配置接口'),
-          subtitle: const Text('添加一个 OpenAI 兼容接口（支持自定义 Base URL 和模型名）'),
+          title: const Text('Интерфейс не настроен'),
+          subtitle: const Text('Добавить OpenAI-совместимый API (свой URL и модель)'),
           trailing: const Icon(Icons.add),
           onTap: () => _editProvider(context, null),
         ),
@@ -102,9 +102,9 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                   }
                 },
                 itemBuilder: (_) => [
-                  PopupMenuItem(value: 'edit', child: Text('编辑接口')),
-                  PopupMenuItem(value: 'default', child: Text(p.isDefault ? '已是默认' : '设为默认')),
-                  const PopupMenuItem(value: 'delete', child: Text('删除')),
+                  PopupMenuItem(value: 'edit', child: Text('Редактировать API')),
+                  PopupMenuItem(value: 'default', child: Text(p.isDefault ? 'Уже по умолчанию' : 'Сделать по умолчанию')),
+                  const PopupMenuItem(value: 'delete', child: Text('Удалить')),
                 ],
               ),
             ),
@@ -112,7 +112,7 @@ class _ProvidersSectionState extends State<ProvidersSection> {
         Card(
           child: ListTile(
             leading: const Icon(Icons.add),
-            title: const Text('添加接口'),
+            title: const Text('Добавить API'),
             onTap: () => _editProvider(context, null),
           ),
         ),
@@ -139,7 +139,7 @@ class _ProvidersSectionState extends State<ProvidersSection> {
       context: context,
       builder: (d) => StatefulBuilder(
         builder: (d, setState) => AlertDialog(
-          title: Text(p == null ? '添加接口' : '编辑接口'),
+          title: Text(p == null ? 'Добавить API' : 'Редактировать API'),
           content: SizedBox(
             width: 380,
             child: SingleChildScrollView(
@@ -147,7 +147,7 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('快速选择预设：'),
+                  const Text('Быстрый выбор пресета:'),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -163,7 +163,7 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                         .toList(),
                   ),
                   const SizedBox(height: 10),
-                  TextField(controller: name, decoration: const InputDecoration(labelText: '名称')),
+                  TextField(controller: name, decoration: const InputDecoration(labelText: 'Название')),
                   const SizedBox(height: 12),
                   TextField(controller: base, decoration: const InputDecoration(labelText: 'Base URL', hintText: 'https://api.openai.com/v1')),
                   const SizedBox(height: 12),
@@ -174,11 +174,11 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                       Expanded(
                         child: TextField(
                           controller: model,
-                          decoration: const InputDecoration(labelText: '模型名', hintText: 'gpt-4o / deepseek-chat'),
+                          decoration: const InputDecoration(labelText: 'Имя модели', hintText: 'gpt-4o / deepseek-chat'),
                         ),
                       ),
                       IconButton(
-                        tooltip: '获取模型',
+                        tooltip: 'Получить модели',
                         icon: const Icon(Icons.list),
                         onPressed: () async {
                           final b = base.text.trim().isEmpty ? 'https://api.openai.com/v1' : base.text.trim();
@@ -186,7 +186,7 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                             final models = await ApiClient().getModels(
                                 baseUrl: b, apiKey: key.text.trim());
                             if (models.isEmpty) {
-                              ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('未获取到模型')));
+                              ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('Модели не получены')));
                               return;
                             }
                             final picked = await showModelPicker(d, models);
@@ -209,12 +209,12 @@ class _ProvidersSectionState extends State<ProvidersSection> {
                   ),
                   TextButton.icon(
                     icon: const Icon(Icons.wifi_tethering),
-                    label: const Text('测试连接'),
+                    label: const Text('Проверить связь'),
                     onPressed: () async {
                       try {
                         await ApiClient().testConnection(
                             baseUrl: base.text.trim(), apiKey: key.text.trim());
-                        ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('连接成功')));
+                        ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('Связь установлена')));
                       } catch (e) {
                         ScaffoldMessenger.of(d).showSnackBar(SnackBar(content: Text('连接失败: $e')));
                       }
@@ -225,16 +225,16 @@ class _ProvidersSectionState extends State<ProvidersSection> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('取消')),
+            TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Отмена')),
             TextButton(
               onPressed: () {
                 if (base.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('请填写 Base URL')));
+                  ScaffoldMessenger.of(d).showSnackBar(const SnackBar(content: Text('Введите Base URL')));
                   return;
                 }
                 Navigator.pop(d, true);
               },
-              child: const Text('保存'),
+              child: const Text('Сохранить'),
             ),
           ],
         ),
@@ -278,7 +278,7 @@ class _ThemeSectionState extends State<_ThemeSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('主题色', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Цвет темы', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -302,9 +302,9 @@ class _ThemeSectionState extends State<_ThemeSection> {
             ),
             const SizedBox(height: 12),
             for (final e in const [
-              ['system', '跟随系统'],
-              ['light', '亮色'],
-              ['dark', '暗色'],
+              ['system', 'Как в системе'],
+              ['light', 'Светлая'],
+              ['dark', 'Тёмная'],
             ])
               RadioListTile<String>(
                 dense: true,
@@ -315,14 +315,14 @@ class _ThemeSectionState extends State<_ThemeSection> {
               ),
             SwitchListTile(
               dense: true,
-              title: const Text('夜间自动切暗色'),
+              title: const Text('Авто-тёмная тема ночью'),
               value: s.nightAutoDark,
               onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(nightAutoDark: v)),
             ),
             if (s.nightAutoDark) ...[
               Row(
                 children: [
-                  const Text('夜晚开始'),
+                  const Text('Начало ночи'),
                   Expanded(
                     child: Slider(
                       value: s.nightStartHour.toDouble().clamp(17, 23),
@@ -337,7 +337,7 @@ class _ThemeSectionState extends State<_ThemeSection> {
               ),
               Row(
                 children: [
-                  const Text('夜晚结束'),
+                  const Text('Конец ночи'),
                   Expanded(
                     child: Slider(
                       value: s.nightEndHour.toDouble().clamp(0, 11),
@@ -355,12 +355,12 @@ class _ThemeSectionState extends State<_ThemeSection> {
               leading: s.chatBackground.isEmpty
                   ? const Icon(Icons.image)
                   : CircleAvatar(backgroundImage: FileImage(File(s.chatBackground))),
-              title: const Text('自定义主题背景'),
-              subtitle: Text(s.chatBackground.isEmpty ? '未设置' : '已设置'),
+              title: const Text('Своя тема фона'),
+              subtitle: Text(s.chatBackground.isEmpty ? 'Не установлено' : 'Установлено'),
               trailing: s.chatBackground.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: '恢复默认',
+                      tooltip: 'Сбросить',
                       onPressed: () =>
                           context.read<AppState>().updateSettings(s.copyWith(chatBackground: '')),
                     )
@@ -416,13 +416,13 @@ class _PersonaSectionState extends State<_PersonaSection> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            TextField(controller: _name, decoration: const InputDecoration(labelText: '你的名字', prefixIcon: Icon(Icons.person))),
+            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Ваше имя', prefixIcon: Icon(Icons.person))),
             const SizedBox(height: 8),
-            TextField(controller: _gender, decoration: const InputDecoration(labelText: '你的性别', prefixIcon: Icon(Icons.wc))),
+            TextField(controller: _gender, decoration: const InputDecoration(labelText: 'Ваш пол', prefixIcon: Icon(Icons.wc))),
             const SizedBox(height: 8),
-            TextField(controller: _relation, decoration: const InputDecoration(labelText: '与角色的关系', prefixIcon: Icon(Icons.favorite))),
+            TextField(controller: _relation, decoration: const InputDecoration(labelText: 'Отношения с персонажем', prefixIcon: Icon(Icons.favorite))),
             const SizedBox(height: 8),
-            TextField(controller: _bg, maxLines: 2, decoration: const InputDecoration(labelText: '你的身份背景', prefixIcon: Icon(Icons.badge))),
+            TextField(controller: _bg, maxLines: 2, decoration: const InputDecoration(labelText: 'Предыстория', prefixIcon: Icon(Icons.badge))),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
@@ -437,10 +437,10 @@ class _PersonaSectionState extends State<_PersonaSection> {
                             ),
                       );
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сохранено')));
                   }
                 },
-                child: const Text('保存'),
+                child: const Text('Сохранить'),
               ),
             ),
           ],
@@ -468,8 +468,8 @@ class _AvatarSectionState extends State<_AvatarSection> {
           backgroundImage: s.userAvatar.isNotEmpty ? FileImage(File(s.userAvatar)) : null,
           child: s.userAvatar.isEmpty ? const Icon(Icons.person) : null,
         ),
-        title: const Text('我的头像'),
-        subtitle: Text(s.userAvatar.isEmpty ? '未设置' : '已设置'),
+        title: const Text('Мой аватар'),
+        subtitle: Text(s.userAvatar.isEmpty ? 'Не установлено' : 'Установлено'),
         onTap: () async {
           final r = await FilePicker.platform.pickFiles(type: FileType.image);
           if (r != null && r.files.isNotEmpty) {
@@ -502,13 +502,13 @@ class _ShowAvatarSectionState extends State<_ShowAvatarSection> {
         children: [
           SwitchListTile(
             dense: true,
-            title: const Text('展示角色头像'),
+            title: const Text('Показывать аватар персонажа'),
             value: s.showCharAvatar,
             onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(showCharAvatar: v)),
           ),
           SwitchListTile(
             dense: true,
-            title: const Text('展示我的头像'),
+            title: const Text('Показывать мой аватар'),
             value: s.showUserAvatar,
             onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(showUserAvatar: v)),
           ),
@@ -536,7 +536,7 @@ class _ChatSettingsSectionState extends State<_ChatSettingsSection> {
           children: [
             Row(
               children: [
-                const Text('上下文轮数'),
+                const Text('Глубина контекста'),
                 const Spacer(),
                 SizedBox(
                   width: 160,
@@ -555,26 +555,26 @@ class _ChatSettingsSectionState extends State<_ChatSettingsSection> {
             ),
             SwitchListTile(
               dense: true,
-              title: const Text('记忆注入 (AGENTS.md)'),
+              title: const Text('Внедрение памяти (AGENTS.md)'),
               value: s.memoryEnabled,
               onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(memoryEnabled: v)),
             ),
             SwitchListTile(
               dense: true,
-              title: const Text('感应现实(自动记录日期时间)'),
+              title: const Text('Записывать дату и время'),
               value: s.realSense,
               onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(realSense: v)),
             ),
             SwitchListTile(
               dense: true,
-              title: const Text('记忆达上限自动删除'),
+              title: const Text('Удалять старую память'),
               value: s.memoryAutoPrune,
               onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(memoryAutoPrune: v)),
             ),
             if (s.memoryAutoPrune)
               Row(
                 children: [
-                  const Text('记忆上限'),
+                  const Text('Лимит памяти'),
                   const Spacer(),
                   SizedBox(
                     width: 160,
@@ -593,7 +593,7 @@ class _ChatSettingsSectionState extends State<_ChatSettingsSection> {
               ),
             Row(
               children: [
-                const Text('自动记忆间隔'),
+                const Text('Интервал авто-памяти'),
                 const Spacer(),
                 SizedBox(
                   width: 140,
@@ -610,13 +610,13 @@ class _ChatSettingsSectionState extends State<_ChatSettingsSection> {
             ),
             SwitchListTile(
               dense: true,
-              title: const Text('输出思考内容'),
+              title: const Text('Показывать размышления'),
               value: s.outputThinking,
               onChanged: (v) => context.read<AppState>().updateSettings(s.copyWith(outputThinking: v)),
             ),
             Row(
               children: [
-                const Text('字体大小'),
+                const Text('Размер шрифта'),
                 const Spacer(),
                 SizedBox(
                   width: 140,
@@ -653,35 +653,35 @@ class _DataSectionState extends State<_DataSection> {
         children: [
           ListTile(
             leading: const Icon(Icons.upload_file),
-            title: const Text('导出全部数据'),
-            subtitle: const Text('含角色、聊天、记忆、世界书'),
+            title: const Text('Экспорт всех данных'),
+            subtitle: const Text('Включая персонажей, чаты, память, книги'),
             onTap: _busy ? null : () async {
               setState(() => _busy = true);
               final ok = await context.read<AppState>().exportToFile('mostaron_backup.json');
               setState(() => _busy = false);
               if (context.mounted) {
                 ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text(ok ? '导出成功' : '导出失败')));
+                    .showSnackBar(SnackBar(content: Text(ok ? 'Экспорт успешен' : 'Ошибка экспорта')));
               }
             },
           ),
           ListTile(
             leading: const Icon(Icons.download),
-            title: const Text('导入全部数据'),
-            subtitle: const Text('从 JSON 备份恢复（覆盖当前数据）'),
+            title: const Text('Импорт всех данных'),
+            subtitle: const Text('Восстановить из JSON (перезапишет данные)'),
             onTap: _busy ? null : () async {
               setState(() => _busy = true);
               final ok = await context.read<AppState>().importFromFile();
               setState(() => _busy = false);
               if (context.mounted) {
                 ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text(ok ? '导入成功' : '导入失败')));
+                    .showSnackBar(SnackBar(content: Text(ok ? 'Импорт успешен' : 'Ошибка импорта')));
               }
             },
           ),
           ListTile(
             leading: const Icon(Icons.menu_book),
-            title: const Text('世界书'),
+            title: const Text('Мировая книга'),
             subtitle: const Text('添加/删除全局世界书，在角色/群聊里勾选启用'),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorldbookScreen())),
           ),
@@ -698,7 +698,7 @@ class _HelpSection extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.help_outline),
-        title: const Text('使用说明'),
+        title: const Text('Инструкция'),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UsageHelpScreen())),
       ),
     );
@@ -726,7 +726,7 @@ Future<List<String>?> showModelPicker(BuildContext context, List<String> models)
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Text('选择模型（点"添加"加入分组）',
+                    child: Text('Выбрать модель (нажмите "Добавить")',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                   Padding(
@@ -747,7 +747,7 @@ Future<List<String>?> showModelPicker(BuildContext context, List<String> models)
                           title: Text(m, style: const TextStyle(fontSize: 14)),
                           trailing: TextButton.icon(
                             icon: Icon(added ? Icons.check : Icons.add, size: 16),
-                            label: Text(added ? '已添加' : '添加'),
+                            label: Text(added ? 'Добавлено' : 'Добавить'),
                             onPressed: () => setState(() => added ? selected.remove(m) : selected.add(m)),
                           ),
                         );
@@ -760,7 +760,7 @@ Future<List<String>?> showModelPicker(BuildContext context, List<String> models)
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () => Navigator.pop(ctx, selected.toList()),
-                        child: Text('确定（已添加 ${selected.length} 个模型）'),
+                        child: Text('ОК (добавлено ${selected.length} моделей)'),
                       ),
                     ),
                   ),
@@ -834,7 +834,7 @@ class _ManageModelsSheetState extends State<_ManageModelsSheet> {
             ),
             Expanded(
               child: _models.isEmpty
-                  ? const Center(child: Text('暂无模型，点下方"添加模型"'))
+                  ? const Center(child: Text('Нет моделей, нажмите "Добавить"'))
                   : ListView.builder(
                       itemCount: _models.length,
                       itemBuilder: (context, i) => RadioListTile<String>(
@@ -865,12 +865,12 @@ class _ManageModelsSheetState extends State<_ManageModelsSheet> {
                       icon: _fetching
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.add),
-                      label: const Text('添加模型'),
+                      label: const Text('Добавить модель'),
                       onPressed: _fetching ? null : _add,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('完成')),
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Готово')),
                 ],
               ),
             ),
@@ -897,19 +897,19 @@ class _BubbleSectionState extends State<_BubbleSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('我的气泡颜色', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Цвет моего пузыря', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             _colorRow(s.bubbleSelfColor, (hex) => context.read<AppState>()
                 .updateSettings(s.copyWith(bubbleSelfColor: hex))),
             const SizedBox(height: 12),
-            const Text('角色气泡颜色', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Цвет пузыря персонажа', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             _colorRow(s.bubbleCharColor, (hex) => context.read<AppState>()
                 .updateSettings(s.copyWith(bubbleCharColor: hex))),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('气泡透明度'),
+                const Text('Прозрачность пузыря'),
                 Expanded(
                   child: Slider(
                     value: s.bubbleOpacity.clamp(0.0, 1.0),
@@ -934,12 +934,12 @@ class _BubbleSectionState extends State<_BubbleSection> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _chip(null, '默认', current.isEmpty, () => onPick('')),
+        _chip(null, 'По умолчанию', current.isEmpty, () => onPick('')),
         for (final c in bubbleColorChoices)
           _chip(colorToHex(c), '', current == colorToHex(c), () => onPick(colorToHex(c))),
         _chip(
           _currentCustom(current),
-          '调色盘',
+          'Палитра',
           false,
           () async {
             final c = await showColorPicker(context, initial: parseHexColor(current) ?? const Color(0xFF1E88E5));
@@ -970,7 +970,7 @@ class _BubbleSectionState extends State<_BubbleSection> {
         ),
         alignment: Alignment.center,
         child: hex == null
-            ? Text('默', style: const TextStyle(fontSize: 11))
+            ? Text('По', style: const TextStyle(fontSize: 11))
             : selected
                 ? const Icon(Icons.check, color: Colors.white, size: 18)
                 : null,
