@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
   final String initialName;
@@ -16,6 +18,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   bool _genderPublic = false;
   DateTime _birthday = DateTime(2001, 7, 20);
   String _userId = '3202428735';
+  String? _avatarPath;
 
   @override
   void initState() {
@@ -31,15 +34,106 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     super.dispose();
   }
 
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
+    if (file != null) {
+      setState(() => _avatarPath = file.path);
+      if (mounted) Navigator.pop(context);
+      if (mounted) _showAvatarSheet();
+    }
+  }
+
+  void _showAvatarSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A22),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.75,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Spacer(),
+                const Text('Выбрать фото',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white54),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Кнопка +
+            InkWell(
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _pickFromGallery();
+              },
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF25252E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Icon(Icons.add, color: Colors.white, size: 48),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Или выберите готовый',
+                  style: TextStyle(color: Colors.white54, fontSize: 13)),
+            ),
+            const SizedBox(height: 12),
+            // Сетка готовых аватаров (заглушки)
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: 16,
+                itemBuilder: (_, i) {
+                  return InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      // Заглушка — пока просто закроем
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A2A33),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        i.isEven ? Icons.person : Icons.face,
+                        color: Colors.white38,
+                        size: 32,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickBirthday() async {
-    final now = DateTime.now();
-    // Показываем кастомный барабан снизу
     final picked = await showModalBottomSheet<DateTime>(
       context: context,
       backgroundColor: const Color(0xFF1A1A22),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       isScrollControlled: true,
       builder: (ctx) {
         DateTime temp = _birthday;
@@ -69,7 +163,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   Expanded(
                     child: Row(
                       children: [
-                        // День
                         Expanded(
                           child: _wheel(
                             items: List.generate(31, (i) => '${i + 1}'),
@@ -83,7 +176,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                             },
                           ),
                         ),
-                        // Месяц
                         Expanded(
                           child: _wheel(
                             items: const ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'],
@@ -91,7 +183,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                             onChanged: (i) => setModalState(() => temp = DateTime(temp.year, i + 1, temp.day)),
                           ),
                         ),
-                        // Год
                         Expanded(
                           child: _wheel(
                             items: List.generate(127, (i) => '${2026 - i}'),
@@ -109,9 +200,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         );
       },
     );
-    if (picked != null) {
-      setState(() => _birthday = picked);
-    }
+    if (picked != null) setState(() => _birthday = picked);
   }
 
   Widget _wheel({required List<String> items, required int initial, required ValueChanged<int> onChanged}) {
@@ -125,8 +214,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       childDelegate: ListWheelChildBuilderDelegate(
         childCount: items.length,
         builder: (context, i) => Center(
-          child: Text(items[i],
-              style: const TextStyle(color: Colors.white, fontSize: 16)),
+          child: Text(items[i], style: const TextStyle(color: Colors.white, fontSize: 16)),
         ),
       ),
     );
@@ -157,14 +245,20 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 Container(
                   width: 110, height: 110,
                   decoration: const BoxDecoration(color: Color(0xFF2A2A33), shape: BoxShape.circle),
-                  child: const Icon(Icons.person, color: Colors.white54, size: 60),
+                  clipBehavior: Clip.antiAlias,
+                  child: _avatarPath != null
+                      ? Image.file(File(_avatarPath!), fit: BoxFit.cover)
+                      : const Icon(Icons.person, color: Colors.white54, size: 60),
                 ),
                 Positioned(
                   right: 0, bottom: 0,
-                  child: Container(
-                    width: 32, height: 32,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.edit, color: Colors.black, size: 16),
+                  child: InkWell(
+                    onTap: _showAvatarSheet,
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: const Icon(Icons.edit, color: Colors.black, size: 16),
+                    ),
                   ),
                 ),
               ],
@@ -177,7 +271,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Имя пользователя
+          // Имя
           const Text('Имя пользователя', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
@@ -286,16 +380,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Кнопка Сохранить
           SizedBox(
             height: 52,
             child: ElevatedButton(
               onPressed: () {
                 Navigator.pop(context, {
-                  'name': _nameController.text.trim().isEmpty ? 'Артём' : _nameController.text.trim(),
-                  'gender': _gender,
-                  'birthday': _birthday.toIso8601String(),
-                  'bio': _bioController.text.trim(),
+                  'name': _nameController.text.trim().isEmpty ? 'Чико' : _nameController.text.trim(),
+                  'avatarPath': _avatarPath ?? '',
                 });
               },
               style: ElevatedButton.styleFrom(

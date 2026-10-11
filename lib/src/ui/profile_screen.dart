@@ -193,10 +193,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     children: [
                       Container(
-                        width: 56, height: 56,
-                        decoration: const BoxDecoration(color: Color(0xFF2A2A33), shape: BoxShape.circle),
-                        child: const Icon(Icons.person, color: Colors.white54, size: 32),
-                      ),
+  width: 56, height: 56,
+  decoration: const BoxDecoration(color: Color(0xFF2A2A33), shape: BoxShape.circle),
+  clipBehavior: Clip.antiAlias,
+  child: _avatarPath.isNotEmpty
+      ? Image.file(File(_avatarPath), fit: BoxFit.cover)
+      : const Icon(Icons.person, color: Colors.white54, size: 32),
+),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
