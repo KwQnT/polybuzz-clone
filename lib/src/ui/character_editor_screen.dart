@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../models/models.dart';
 import '../state/app_state.dart';
 
 class CharacterEditorScreen extends StatefulWidget {
-  const CharacterEditorScreen({super.key});
+  final Character? character;
+  const CharacterEditorScreen({super.key, this.character});
 
   @override
   State<CharacterEditorScreen> createState() => _CharacterEditorScreenState();
@@ -19,8 +21,19 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
 
   String _gender = 'Мужской';
   String _visibility = 'Публичный';
-  bool _agreed = false;
+  bool _agreed = true;
   String? _avatarPath;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.character != null) {
+      _nameController.text = widget.character!.name;
+      _introController.text = widget.character!.personality;
+      _greetingController.text = widget.character!.greeting;
+      _avatarPath = widget.character!.avatar.isNotEmpty ? widget.character!.avatar : null;
+    }
+  }
 
   @override
   void dispose() {
@@ -55,32 +68,42 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
     ));
   }
 
-  void _saveDraft() {
-    _toast('Черновик сохранён');
-  }
+  void _saveDraft() => _toast('Черновик сохранён');
+  void _generateAi() => _toast('ИИ-генерация скоро');
 
-  void _generateAi() {
-    _toast('ИИ-генерация скоро');
-  }
-
-  void _save() async {
+  Future<void> _save() async {
     if (_nameController.text.trim().length < 3) {
       _toast('Имя должно быть от 3 до 36 символов');
       return;
     }
-    if (!_agreed) {
-      _toast('Подтвердите согласие');
-      return;
-    }
+
     final state = context.read<AppState>();
-    await state.createCharacter(
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+
+    final ch = Character(
+      id: widget.character?.id ?? id,
       name: _nameController.text.trim(),
-      description: _introController.text.trim(),
+      avatar: _avatarPath ?? '',
+      persona: '',
+      personality: _introController.text.trim(),
+      tone: '',
+      background: '',
       greeting: _greetingController.text.trim(),
-      avatarPath: _avatarPath,
+      chatBackground: '',
+      replyStyle: 'default',
+      worldbookIds: [],
+      settings: {},
+      userName: '',
     );
+
+    if (widget.character == null) {
+      await state.addCharacter(ch);
+    } else {
+      await state.updateCharacter(ch);
+    }
+
     if (mounted) {
-      _toast('Персонаж создан');
+      _toast('Персонаж сохранён');
       Navigator.pop(context);
     }
   }
@@ -109,7 +132,6 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Аватар
           const _Label('Аватар', required: true),
           const SizedBox(height: 8),
           Row(
@@ -138,8 +160,6 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // Имя
           const _Label('Имя', required: true),
           const SizedBox(height: 8),
           TextField(
@@ -156,10 +176,8 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
-          const _HintText('Пожалуйста, введите от 3 до 36 символов. Только буквы, цифры, подчеркивание, дефис и пробел.'),
+          const _HintText('Пожалуйста, введите от 3 до 36 символов.'),
           const SizedBox(height: 20),
-
-          // Пол
           const _Label('Пол', required: true),
           const SizedBox(height: 8),
           Row(
@@ -172,8 +190,6 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // Вступление
           const _Label('Вступление.', required: true, suffix: '(публично видно)'),
           const SizedBox(height: 8),
           TextField(
@@ -182,7 +198,7 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             maxLength: 1000,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'например, {char} — доблестный рыцарь, молчаливый и сдержанный.',
+              hintText: 'например, {char} — доблестный рыцарь...',
               hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
               counterStyle: const TextStyle(color: Colors.white54),
               filled: true,
@@ -193,12 +209,8 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
           ),
           const _HintText('Дайте вашему персонажу краткое описание.'),
           const SizedBox(height: 20),
-
-          // Приветствия
           const _Label('Приветствия', required: true),
           const SizedBox(height: 8),
-
-          // Панель вставки разметки
           Row(
             children: [
               _markupButton('* Text *', () => _insertIntoGreeting('**')),
@@ -209,7 +221,6 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             ],
           ),
           const SizedBox(height: 8),
-
           TextField(
             controller: _greetingController,
             focusNode: _greetingFocus,
@@ -217,7 +228,7 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             maxLength: 3000,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'например *Тускло освещенная комната...* Кто посмеет войти в мои владения?',
+              hintText: 'например *Тускло освещенная комната...*',
               hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
               counterStyle: const TextStyle(color: Colors.white54),
               filled: true,
@@ -226,9 +237,7 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
-          const _HintText('Создайте приветствие, которое определит ваш характер.'),
-
-          // Генерировать
+          const _HintText('Создайте приветствие.'),
           const SizedBox(height: 12),
           Center(
             child: InkWell(
@@ -253,8 +262,6 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // Разрешение
           const _Label('Разрешение', required: true),
           const SizedBox(height: 8),
           Row(
@@ -264,29 +271,7 @@ class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
               _radio('Приватный', _visibility == 'Приватный', () => setState(() => _visibility = 'Приватный')),
             ],
           ),
-          const SizedBox(height: 20),
-
-          // Согласие
-          Row(
-            children: [
-              Checkbox(
-                value: _agreed,
-                onChanged: (v) => setState(() => _agreed = v ?? false),
-                activeColor: const Color(0xFF7B6CF6),
-                side: const BorderSide(color: Colors.white54),
-              ),
-              const Expanded(
-                child: Text(
-                  'Я подтверждаю, что мой Персонаж не нарушает права на изображение, интеллектуальную собственность или любые другие права.',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const _HintText('Предполагается, что все персонажи на платформе являются совершеннолетними (18+).'),
           const SizedBox(height: 24),
-
-          // Кнопка Сохранить
           SizedBox(
             height: 52,
             child: ElevatedButton(
