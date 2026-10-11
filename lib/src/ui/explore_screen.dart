@@ -12,7 +12,6 @@ class ExploreScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            // Поиск
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Container(
@@ -31,8 +30,6 @@ class ExploreScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Баннер «В разработке»
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -61,19 +58,10 @@ class ExploreScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Рейтинг персонажей
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text('Рейтинг персонажей 🏆',
-                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
-                  Spacer(),
-                  Text('В разработке',
-                      style: TextStyle(color: Colors.white38, fontSize: 13)),
-                ],
-              ),
+              child: Text('Рейтинг персонажей 🏆',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 12),
             Container(
@@ -95,8 +83,6 @@ class ExploreScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Подборки
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text('Подборки',
@@ -125,3 +111,5 @@ class ExploreScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}

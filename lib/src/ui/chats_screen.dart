@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'create_hub_screen.dart';
-import 'explore_screen.dart';
-import 'settings_screen.dart';
+import 'package:flutter/material.dart';
 
 class ChatsScreen extends StatelessWidget {
   const ChatsScreen({super.key});
@@ -48,4 +46,6 @@ class ChatsScreen extends StatelessWidget {
           ],
         ),
       ),
-      
+    );
+  }
+}
