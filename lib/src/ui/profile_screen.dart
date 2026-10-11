@@ -79,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(color: const Color(0xFF25252E), borderRadius: BorderRadius.circular(14)),
           child: Row(
             children: [
-              const Icon(Icons.attach_money, color: Color(0xFFE8C97B), size: 26),
+              const Icon(Icons.monetization_on_outlined, color: Color(0xFFE8C97B), size: 26),
               const SizedBox(width: 12),
               Text('$coins монет', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
               if (bonus != null) ...[
@@ -227,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // Подписки
               SizedBox(
-                height: 180,
+                height: 190,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -258,15 +258,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: 32, height: 32,
-                            decoration: const BoxDecoration(color: Color(0xFF25252E), shape: BoxShape.circle),
-                            child: const Icon(Icons.attach_money, color: Color(0xFFE8C97B), size: 18),
-                          ),
+                          const Icon(Icons.monetization_on_outlined, color: Colors.white, size: 28),
                           const SizedBox(width: 10),
                           const Text('Монеты', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                           const Spacer(),
-                          const Icon(Icons.attach_money, color: Color(0xFFE8C97B), size: 18),
+                          const Icon(Icons.monetization_on, color: Color(0xFFE8C97B), size: 18),
                           const SizedBox(width: 4),
                           Text('$_coins', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
                         ],
@@ -290,8 +286,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: InkWell(
                   onTap: () {
-                    setState(() => _opals += 999999);
-                    _toast('+999999 опалов');
+                    setState(() => _opals += 1);
+                    _toast('+1 опал');
                   },
                   child: Container(
                     padding: const EdgeInsets.all(14),
@@ -301,11 +297,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+                        const Icon(Icons.diamond_outlined, color: Colors.white, size: 24),
                         const SizedBox(width: 10),
                         const Text('Опалы', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                         const Spacer(),
-                        const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                        const Icon(Icons.diamond, color: Color(0xFFB7B7F0), size: 16),
                         const SizedBox(width: 4),
                         Text('$_opals', style: const TextStyle(color: Colors.white, fontSize: 14)),
                         const SizedBox(width: 4),
@@ -325,7 +321,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(color: const Color(0xFF1A1A22), borderRadius: BorderRadius.circular(16)),
                   child: const Row(
                     children: [
-                      Icon(Icons.person_pin_circle, color: Colors.white, size: 22),
+                      Icon(Icons.how_to_reg, color: Colors.white, size: 24),
                       SizedBox(width: 10),
                       Text('Центр Создателя', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                       Spacer(),
@@ -372,19 +368,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 40),
-
-              // Пустое состояние
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    'Ещё нет игроков',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white38, fontSize: 14),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -423,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.workspace_premium, color: Colors.white, size: 20),
+              const Icon(Icons.workspace_premium, color: Colors.white, size: 22),
               const SizedBox(width: 6),
               Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
             ],
