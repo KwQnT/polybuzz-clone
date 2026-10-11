@@ -19,6 +19,7 @@ import 'widgets/character_actions.dart';
 import 'chats_screen.dart';
 import 'create_hub_screen.dart';
 import 'explore_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -302,7 +303,7 @@ Widget _pbBottomNav() {
         InkWell(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
           ),
           child: const Icon(Icons.person_outline, color: Colors.white54, size: 26),
         ),
