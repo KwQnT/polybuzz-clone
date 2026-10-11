@@ -16,7 +16,6 @@ import 'group_chat_screen.dart';
 import 'model_settings_screen.dart';
 import 'widgets/avatars.dart';
 import 'widgets/character_actions.dart';
-import 'chats_screen.dart';
 import 'create_hub_screen.dart';
 import 'explore_screen.dart';
 import 'profile_screen.dart';
