@@ -48,42 +48,4 @@ class ChatsScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-  color: const Color(0xFF0E0E12),
-  padding: const EdgeInsets.only(top: 8, bottom: 8),
-  child: Row(
-    mainAxisAlignment: MainAxisAlignment.spaceAround,
-    children: [
-      InkWell(
-        onTap: () => Navigator.pop(context),
-        child: const Icon(Icons.home_outlined, color: Colors.white54, size: 26),
-      ),
-      const Icon(Icons.chat_bubble, color: Colors.white, size: 26),
-      InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CreateHubScreen()),
-        ),
-        child: Container(
-          width: 44, height: 44,
-          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-          child: const Icon(Icons.add, color: Colors.black, size: 28),
-        ),
-      ),
-      InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ExploreScreen()),
-        ),
-        child: const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
-      ),
-      InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SettingsScreen()),
-        ),
-        child: const Icon(Icons.person_outline, color: Colors.white54, size: 26),
-      ),
-    ],
-  ),
-),
+      
