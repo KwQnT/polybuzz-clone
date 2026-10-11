@@ -9,6 +9,10 @@ import '../state/app_state.dart';
 import '../utils/file_utils.dart';
 import 'character_editor_screen.dart';
 import 'chat_screen.dart';
+import 'chats_screen.dart';
+import 'create_hub_screen.dart';
+import 'explore_screen.dart';
+import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'usage_help_screen.dart';
 import 'group_create_screen.dart';
@@ -16,9 +20,6 @@ import 'group_chat_screen.dart';
 import 'model_settings_screen.dart';
 import 'widgets/avatars.dart';
 import 'widgets/character_actions.dart';
-import 'create_hub_screen.dart';
-import 'explore_screen.dart';
-import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,7 +31,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _listMode = true;
 
-  // 合并后的条目
   List<_HomeItem> _items(AppState state) {
     final items = <_HomeItem>[
       for (final g in state.groups) _HomeItem.group(g),
@@ -53,9 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (didPop) return;
         _confirmExit();
       },
-      child: Scaffold(
-        body: _homeBody(state, items),
-      ),
+      child: _homeBody(state, items),
     );
   }
 
@@ -63,20 +61,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('mostaron：'),
-        content: const Text('你确定要退出应用吗？qwq'),
+        backgroundColor: const Color(0xFF1A1A22),
+        title: const Text('Выход', style: TextStyle(color: Colors.white)),
+        content: const Text('Вы уверены, что хотите выйти?', style: TextStyle(color: Colors.white70)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('确定')),
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Отмена', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(d, true),
+            child: const Text('Выйти', style: TextStyle(color: Color(0xFF7B6CF6))),
+          ),
         ],
       ),
     );
-    if (ok == true) {
-      SystemNavigator.pop();
-    }
+    if (ok == true) SystemNavigator.pop();
   }
 
-  /// 从主页导入 SillyTavern 角色卡，创建为新角色；图片卡自动用该图片做头像。
   Future<void> _importCharacterCard(BuildContext context) async {
     final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
     if (r == null || r.files.isEmpty) return;
@@ -88,11 +90,10 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
     }
     if (bytes == null || bytes.isEmpty) {
-      _toast('无法读取文件');
+      _toast('Не удалось прочитать файл');
       return;
     }
     final state = context.read<AppState>();
-    // 判断是否为图片角色卡（PNG/WebP），是则持久化为头像
     final isImage = bytes.length >= 8 &&
         ((bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) ||
             (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46));
@@ -103,286 +104,212 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final created = await state.importCharacterCard(bytes, avatarPath: avatarPath);
     if (created == null) {
-      _toast('无法识别的角色卡（不支持该格式）');
+      _toast('Не удалось распознать карточку');
     } else {
-      _toast('已导入角色「${created.name}」');
+      _toast('Импортирован персонаж «${created.name}»');
     }
   }
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      duration: const Duration(milliseconds: 1500),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
-  /// 创建群聊前先选记忆模式（3 选 1），返回模式字符串。
-  Future<String?> _pickGroupMemoryMode(BuildContext context) {
-    return pickGroupMemoryMode(context);
-  }
-Widget _homeBody(AppState state, List<_HomeItem> items) {
-  return Scaffold(
-    backgroundColor: const Color(0xFF0E0E12),
-    body: SafeArea(
-      bottom: false,
-      child: Column(
-        children: [
-          _pbTopTabs(),
-          _pbSearchBar(),
-          _pbChipsRow(),
-          const SizedBox(height: 8),
-          Expanded(
-            child: items.isEmpty
-                ? _pbEmptyState()
-                : (_listMode
-                    ? _listView(context, state, items)
-                    : _gridView(context, state, items)),
-          ),
-        ],
-      ),
-    ),
-    bottomNavigationBar: _pbBottomNav(),
-  );
-}
-
-Widget _pbTopTabs() {
-  return Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text('Подписки',
-            style: TextStyle(color: Colors.white54, fontSize: 17)),
-        const SizedBox(width: 28),
-        Column(
-          children: const [
-            Text('Исследовать',
-                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
-            SizedBox(height: 4),
-            SizedBox(
-              width: 24, height: 3,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.all(Radius.circular(2)),
-                ),
-              ),
+  // ── ГЛАВНЫЙ ЭКРАН ──
+  Widget _homeBody(AppState state, List<_HomeItem> items) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0E0E12),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _pbTopTabs(),
+            _pbSearchBar(),
+            _pbChipsRow(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: items.isEmpty
+                  ? _pbEmptyState()
+                  : (_listMode
+                      ? _listView(context, state, items)
+                      : _gridView(context, state, items)),
             ),
           ],
         ),
-      ],
-    ),
-  );
-}
-
-Widget _pbSearchBar() {
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-    child: Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E24),
-        borderRadius: BorderRadius.circular(22),
       ),
-      child: const Row(
+      bottomNavigationBar: _pbBottomNav(),
+    );
+  }
+
+  Widget _pbTopTabs() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(width: 14),
-          Icon(Icons.search, color: Colors.white54, size: 22),
-          SizedBox(width: 8),
-          Text('Поиск', style: TextStyle(color: Colors.white54, fontSize: 15)),
-        ],
-      ),
-    ),
-  );
-}
-
-Widget _pbChipsRow() {
-  final chips = ['Для вас', 'От врагов к возлюбленным', 'Кумиры и звёзды', 'Вебтун'];
-  return SizedBox(
-    height: 36,
-    child: ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: chips.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 18),
-      itemBuilder: (_, i) {
-        final selected = i == 0;
-        return Center(
-          child: Text(
-            chips[i],
-            style: TextStyle(
-              color: selected ? Colors.white : Colors.white54,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-              fontSize: 14,
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
-
-Widget _pbEmptyState() {
-  return const Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.person_outline, size: 72, color: Colors.white24),
-        SizedBox(height: 12),
-        Text('Ещё нет персонажей',
-            style: TextStyle(color: Colors.white54, fontSize: 15)),
-      ],
-    ),
-  );
-}
-
-Widget _pbBottomNav() {
-  return Container(
-    color: const Color(0xFF0E0E12),
-    padding: const EdgeInsets.only(top: 8, bottom: 8),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        const Icon(Icons.home_filled, color: Colors.white, size: 26),
-        InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChatsScreen()),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.chat_bubble_outline, color: Colors.white54, size: 26),
-              Positioned(
-                right: -6, top: -4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          const Text('Подписки', style: TextStyle(color: Colors.white54, fontSize: 17)),
+          const SizedBox(width: 28),
+          Column(
+            children: const [
+              Text('Исследовать',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+              SizedBox(height: 4),
+              SizedBox(
+                width: 24,
+                height: 3,
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE53935),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.all(Radius.circular(2)),
                   ),
-                  child: const Text('99+',
-                      style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pbSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E24),
+          borderRadius: BorderRadius.circular(22),
         ),
-        InkWell(
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const CreateHubScreen()),
-  ),
-  child: Container(
-    width: 44, height: 44,
-    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-    child: const Icon(Icons.add, color: Colors.black, size: 28),
-  ),
-),
-        InkWell(
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const ExploreScreen()),
-  ),
-  child: Stack(
-    clipBehavior: Clip.none,
-    children: [
-      const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
-      Positioned(
-        right: -2, top: -2,
-        child: Container(
-          width: 8, height: 8,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE53935),
-            shape: BoxShape.circle,
-          ),
+        child: const Row(
+          children: [
+            SizedBox(width: 14),
+            Icon(Icons.search, color: Colors.white54, size: 22),
+            SizedBox(width: 8),
+            Text('Поиск', style: TextStyle(color: Colors.white54, fontSize: 15)),
+          ],
         ),
       ),
-    ],
-  ),
-),
-        InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ),
-          child: const Icon(Icons.person_outline, color: Colors.white54, size: 26),
-        ),
-      ],
-    ),
-  );
-}
-  /// 主页自定义头部（最上、在内容列里）
-  Widget _header(AppState state) {
+    );
+  }
+
+  Widget _pbChipsRow() {
+    final chips = ['Для вас', 'От врагов к возлюбленным', 'Кумиры и звёзды', 'Вебтун'];
     return SizedBox(
-      height: 40,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          const Center(
-            child: Text('mostaron', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          Positioned(
-            left: 8,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    buildUserAvatar(context, state.settings, 30),
-                    const SizedBox(width: 4),
-                    Text(state.settings.personaName,
-                        style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 18),
+        itemBuilder: (_, i) {
+          final selected = i == 0;
+          return Center(
+            child: Text(
+              chips[i],
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white54,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                fontSize: 14,
               ),
             ),
-          ),
-          Positioned(
-            right: 4,
-            top: 0,
-            bottom: 0,
-            child: Row(
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _pbEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person_outline, size: 72, color: Colors.white24),
+          SizedBox(height: 12),
+          Text('Ещё нет персонажей', style: TextStyle(color: Colors.white54, fontSize: 15)),
+        ],
+      ),
+    );
+  }
+
+  Widget _pbBottomNav() {
+    return Container(
+      color: const Color(0xFF0E0E12),
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          const Icon(Icons.home_filled, color: Colors.white, size: 26),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChatsScreen()),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                IconButton(
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.all(4),
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(_listMode ? Icons.grid_view : Icons.view_list, size: 22),
-                  onPressed: () => setState(() => _listMode = !_listMode),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.add),
-                  onSelected: (v) async {
-                    if (v == 'char') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const CharacterEditorScreen()));
-                    } else if (v == 'group') {
-                      final mode = await _pickGroupMemoryMode(context);
-                      if (mode != null && context.mounted) {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => GroupCreateScreen(initialMemoryMode: mode)));
-                      }
-                    } else if (v == 'importCard') {
-                      await _importCharacterCard(context);
-                    } else if (v == 'models') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ModelSettingsScreen()));
-                    } else if (v == 'settings') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                    } else if (v == 'help') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const UsageHelpScreen()));
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'char', child: ListTile(leading: Icon(Icons.person_add_alt_1), title: Text('添加角色'))),
-                    PopupMenuItem(value: 'group', child: ListTile(leading: Icon(Icons.groups), title: Text('创建群聊'))),
-                    PopupMenuItem(value: 'importCard', child: ListTile(leading: Icon(Icons.file_download_outlined), title: Text('导入角色卡'))),
-                    PopupMenuItem(value: 'models', child: ListTile(leading: Icon(Icons.model_training), title: Text('模型设置'))),
-                    PopupMenuItem(value: 'settings', child: ListTile(leading: Icon(Icons.settings), title: Text('设置'))),
-                    PopupMenuItem(value: 'help', child: ListTile(leading: Icon(Icons.help_outline), title: Text('使用说明'))),
-                  ],
+                const Icon(Icons.chat_bubble_outline, color: Colors.white54, size: 26),
+                Positioned(
+                  right: -6,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('99+',
+                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ],
             ),
+          ),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CreateHubScreen()),
+            ),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: const Icon(Icons.add, color: Colors.black, size: 28),
+            ),
+          ),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExploreScreen()),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE53935),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+            child: const Icon(Icons.person_outline, color: Colors.white54, size: 26),
           ),
         ],
       ),
@@ -395,30 +322,30 @@ Widget _pbBottomNav() {
       itemCount: items.length,
       itemBuilder: (context, i) {
         final it = items[i];
-        final bg = state.settings.chatBackground;
-        final hasBg = bg.isNotEmpty && File(bg).existsSync();
         if (it.group != null) {
-          return _GroupTile(group: it.group!, hasBg: hasBg, lastMsg: state.lastGroupMsg[it.group!.id] ?? '', lastTime: state.lastGroupTime[it.group!.id] ?? 0);
+          return _GroupTile(group: it.group!);
         }
-        return _CharacterTile(character: it.character!, hasBg: hasBg, lastMsg: state.lastCharMsg[it.character!.id] ?? '', lastTime: state.lastCharTime[it.character!.id] ?? 0);
+        return _CharacterTile(character: it.character!);
       },
     );
   }
 
   Widget _gridView(BuildContext context, AppState state, List<_HomeItem> items) {
-    final bg = state.settings.chatBackground;
-    final hasBg = bg.isNotEmpty && File(bg).existsSync();
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, childAspectRatio: 0.86, crossAxisSpacing: 12, mainAxisSpacing: 12),
+        crossAxisCount: 2,
+        childAspectRatio: 0.86,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
       itemCount: items.length,
       itemBuilder: (context, i) {
         final it = items[i];
         if (it.group != null) {
-          return _GroupCardGrid(group: it.group!, hasBg: hasBg, lastMsg: state.lastGroupMsg[it.group!.id] ?? '', lastTime: state.lastGroupTime[it.group!.id] ?? 0);
+          return _GroupCardGrid(group: it.group!);
         }
-        return _CharacterCardGrid(character: it.character!, hasBg: hasBg, lastMsg: state.lastCharMsg[it.character!.id] ?? '', lastTime: state.lastCharTime[it.character!.id] ?? 0);
+        return _CharacterCardGrid(character: it.character!);
       },
     );
   }
@@ -431,361 +358,112 @@ class _HomeItem {
   _HomeItem.group(this.group) : character = null;
   bool get pinned => character?.pinned ?? group?.pinned ?? false;
   int get createdAt => character?.createdAt ?? group?.createdAt ?? 0;
-  int get lastActivity =>
-      character?.lastActivity ?? group?.lastActivity ?? createdAt;
+  int get lastActivity => character?.lastActivity ?? group?.lastActivity ?? createdAt;
 }
 
-// ---------------- List tiles ----------------
 class _CharacterTile extends StatelessWidget {
   final Character character;
-  final bool hasBg;
-  final String lastMsg;
-  final int lastTime;
-  const _CharacterTile({required this.character, this.hasBg = false, this.lastMsg = '', this.lastTime = 0});
+  const _CharacterTile({required this.character});
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final gradient = LinearGradient(colors: [
-      scheme.primaryContainer.withValues(alpha: 0.5),
-      scheme.tertiaryContainer.withValues(alpha: 0.4),
-    ]);
-    return Container(
-      decoration: BoxDecoration(
-        gradient: hasBg ? null : gradient,
-        color: hasBg ? Colors.transparent : null,
-        border: hasBg ? null : Border(bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.3))),
+    return ListTile(
+      leading: buildCharacterAvatar(context, character, 44),
+      title: Text(character.name, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white)),
+      subtitle: const Text('Открыть чат', style: TextStyle(color: Colors.white54)),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ChatScreen(characterId: character.id)),
       ),
-      child: ListTile(
-        leading: buildCharacterAvatar(context, character, 44),
-        tileColor: character.pinned
-            ? scheme.primaryContainer.withValues(alpha: 0.3)
-            : null,
-        title: Text(character.name, overflow: TextOverflow.ellipsis),
-        subtitle: Text(lastMsg.isEmpty ? '暂无消息' : lastMsg,
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(_fmtLastTime(lastTime), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 4),
-            const Icon(Icons.chevron_right, size: 18),
-          ],
-        ),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(characterId: character.id))),
-        onLongPress: () => showCharacterMenu(context, character),
-      ),
+      onLongPress: () => showCharacterMenu(context, character),
     );
   }
 }
 
 class _GroupTile extends StatelessWidget {
   final ChatGroup group;
-  final bool hasBg;
-  final String lastMsg;
-  final int lastTime;
-  const _GroupTile({required this.group, this.hasBg = false, this.lastMsg = '', this.lastTime = 0});
+  const _GroupTile({required this.group});
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final gradient = LinearGradient(colors: [
-      scheme.primaryContainer.withValues(alpha: 0.5),
-      scheme.tertiaryContainer.withValues(alpha: 0.4),
-    ]);
-    return Container(
-      decoration: BoxDecoration(
-        gradient: hasBg ? null : gradient,
-        color: hasBg ? Colors.transparent : null,
-        border: hasBg ? null : Border(bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.3))),
-      ),
-      child: ListTile(
-        leading: buildGroupAvatar(context, group, 44),
-        tileColor: group.pinned
-            ? scheme.primaryContainer.withValues(alpha: 0.3)
-            : null,
-        title: Text(group.name, overflow: TextOverflow.ellipsis),
-        subtitle: Text(lastMsg.isEmpty ? '暂无消息' : lastMsg, style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(_fmtLastTime(lastTime), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 4),
-            const Icon(Icons.chevron_right, size: 18),
-          ],
-        ),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupChatScreen(groupId: group.id))),
-        onLongPress: () => _groupMenu(context, group),
+    return ListTile(
+      leading: buildGroupAvatar(context, group, 44),
+      title: Text(group.name, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white)),
+      subtitle: const Text('Групповой чат', style: TextStyle(color: Colors.white54)),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => GroupChatScreen(groupId: group.id)),
       ),
     );
-  }
-
-  Future<void> _groupMenu(BuildContext context, ChatGroup group) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(group.pinned ? Icons.push_pin : Icons.push_pin_outlined),
-              title: Text(group.pinned ? '取消置顶' : '置顶'),
-              onTap: () => Navigator.pop(ctx, 'pin'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('编辑群聊'),
-              onTap: () => Navigator.pop(ctx, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('克隆群聊'),
-              subtitle: const Text('全新群聊（不携带聊天与记忆）'),
-              onTap: () => Navigator.pop(ctx, 'clone'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy_all),
-              title: const Text('克隆群聊（含聊天与记忆）'),
-              onTap: () => Navigator.pop(ctx, 'cloneFull'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.sync),
-              title: const Text('克隆群聊（改记忆模式）'),
-              subtitle: const Text('克隆设置，聊天与记忆全新，重新选记忆模式'),
-              onTap: () => Navigator.pop(ctx, 'cloneMode'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('删除群聊'),
-              onTap: () => Navigator.pop(ctx, 'delete'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    final state = context.read<AppState>();
-    switch (action) {
-      case 'pin':
-        await state.togglePinGroup(group.id);
-        break;
-      case 'edit':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => GroupCreateScreen(group: group)));
-        break;
-      case 'clone':
-        await state.cloneGroupFull(group, includeHistory: false);
-        break;
-      case 'cloneFull':
-        await state.cloneGroupFull(group, includeHistory: true);
-        break;
-      case 'cloneMode':
-        {
-          final mode = await pickGroupMemoryMode(context);
-          if (mode != null && context.mounted) {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => GroupCreateScreen(cloneFrom: group, initialMemoryMode: mode)));
-          }
-        }
-        break;
-      case 'delete':
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (d) => AlertDialog(
-            title: const Text('删除群聊'),
-            content: Text('确定删除群聊「${group.name}」？'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('取消')),
-              TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('删除')),
-            ],
-          ),
-        );
-        if (ok == true && context.mounted) await state.deleteGroup(group.id);
-        break;
-    }
-  }
-
-  static String _modeLabel(String mode) {
-    switch (mode) {
-      case 'all':
-        return '全员回复';
-      case 'designated':
-        return '指定发言';
-      default:
-        return '自然聊天';
-    }
   }
 }
 
-// ---------------- Grid cards ----------------
 class _CharacterCardGrid extends StatelessWidget {
   final Character character;
-  final bool hasBg;
-  final String lastMsg;
-  final int lastTime;
-  const _CharacterCardGrid({required this.character, this.hasBg = false, this.lastMsg = '', this.lastTime = 0});
+  const _CharacterCardGrid({required this.character});
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
-      color: hasBg ? Colors.transparent : null,
-      elevation: hasBg ? 0 : null,
       child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(characterId: character.id))),
-        onLongPress: () => showCharacterMenu(context, character),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ChatScreen(characterId: character.id)),
+        ),
         child: Column(
           children: [
             Expanded(
-              child: Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: character.pinned
-                            ? [scheme.primaryContainer.withValues(alpha: 0.75), scheme.tertiaryContainer.withValues(alpha: 0.55)]
-                            : [scheme.primaryContainer.withValues(alpha: 0.55), scheme.tertiaryContainer.withValues(alpha: 0.35)],
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: buildCharacterAvatar(context, character, 64),
-                  ),
-                  Positioned(
-                    right: 6,
-                    top: 4,
-                    child: Text(_fmtLastTime(lastTime),
-                        style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
-                  ),
-                ],
+              child: Container(
+                width: double.infinity,
+                color: const Color(0xFF1E1E24),
+                alignment: Alignment.center,
+                child: buildCharacterAvatar(context, character, 64),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Column(
-                children: [
-                  Text(character.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(lastMsg.isEmpty ? '暂无消息' : lastMsg,
-                      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ),
+              child: Text(character.name,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-/// 格式化最新消息时间：当日只显示时间，其余显示日期。
-String _fmtLastTime(int ms) {
-  if (ms <= 0) return '';
-  final d = DateTime.fromMillisecondsSinceEpoch(ms);
-  final now = DateTime.now();
-  final isToday = d.year == now.year && d.month == now.month && d.day == now.day;
-  String p2(int v) => v.toString().padLeft(2, '0');
-  if (isToday) return '${p2(d.hour)}:${p2(d.minute)}';
-  return '${d.year}-${p2(d.month)}-${p2(d.day)}';
-}
-
-/// 选择群聊记忆模式的通用底部弹窗。
-Future<String?> pickGroupMemoryMode(BuildContext context) {
-  return showModalBottomSheet<String>(
-    context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text('选择群聊记忆模式', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          ListTile(
-            leading: const Icon(Icons.groups),
-            title: const Text('全新整体记忆'),
-            subtitle: const Text('群聊作为一个整体记忆，角色不单独记（默认）'),
-            onTap: () => Navigator.pop(ctx, 'whole'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('角色独立全新记忆'),
-            subtitle: const Text('每个角色的记忆单独放、单独编辑，初始为空'),
-            onTap: () => Navigator.pop(ctx, 'separate'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.sync),
-            title: const Text('角色独立同步记忆'),
-            subtitle: const Text('角色私聊记忆与群聊记忆同步增删/编辑'),
-            onTap: () => Navigator.pop(ctx, 'synced'),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _GroupCardGrid extends StatelessWidget {
   final ChatGroup group;
-  final bool hasBg;
-  final String lastMsg;
-  final int lastTime;
-  const _GroupCardGrid({required this.group, this.hasBg = false, this.lastMsg = '', this.lastTime = 0});
+  const _GroupCardGrid({required this.group});
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
-      color: hasBg ? Colors.transparent : null,
-      elevation: hasBg ? 0 : null,
       child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupChatScreen(groupId: group.id))),
-        onLongPress: () => _GroupTile(group: group)._groupMenu(context, group),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => GroupChatScreen(groupId: group.id)),
+        ),
         child: Column(
           children: [
             Expanded(
-              child: Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: group.pinned
-                            ? [scheme.primaryContainer.withValues(alpha: 0.7), scheme.tertiaryContainer.withValues(alpha: 0.5)]
-                            : [scheme.primaryContainer.withValues(alpha: 0.55), scheme.tertiaryContainer.withValues(alpha: 0.35)],
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: buildGroupAvatar(context, group, 64),
-                  ),
-                  Positioned(
-                    right: 6,
-                    top: 4,
-                    child: Text(_fmtLastTime(lastTime),
-                        style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
-                  ),
-                ],
+              child: Container(
+                width: double.infinity,
+                color: const Color(0xFF1E1E24),
+                alignment: Alignment.center,
+                child: buildGroupAvatar(context, group, 64),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Column(
-                children: [
-                  Text(group.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(lastMsg.isEmpty ? '暂无消息' : lastMsg,
-                      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ),
+              child: Text(group.name,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
