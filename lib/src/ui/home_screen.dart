@@ -17,6 +17,7 @@ import 'model_settings_screen.dart';
 import 'widgets/avatars.dart';
 import 'widgets/character_actions.dart';
 import 'chats_screen.dart';
+import 'create_hub_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -267,7 +268,7 @@ Widget _pbBottomNav() {
         InkWell(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CharacterEditorScreen()),
+            MaterialPageRoute(builder: (_) => const CreateHubScreen()),
           ),
           child: Container(
             width: 44, height: 44,
