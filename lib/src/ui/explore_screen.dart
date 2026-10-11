@@ -77,7 +77,7 @@ class ExploreScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.emoji_events_outlined, color: Colors.white24, size: 40),
                   SizedBox(height: 10),
-                  Text('Нет игроков',
+                  Text('Ещё нет игроков',
                       style: TextStyle(color: Colors.white54, fontSize: 14)),
                 ],
               ),
