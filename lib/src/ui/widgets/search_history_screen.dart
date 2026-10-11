@@ -6,6 +6,7 @@ import '../chat_screen.dart';
 import '../group_chat_screen.dart';
 import 'avatars.dart';
 import 'search_util.dart';
+import '../chat_screen.dart';
 
 /// 查找聊天记录界面（角色或群聊通用）。
 /// 顶部显示共多少条，结果横版排版：头像 + 姓名 + 命中消息（关键词主题色）。
