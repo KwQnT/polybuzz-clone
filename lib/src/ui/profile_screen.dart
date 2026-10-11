@@ -157,15 +157,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E12),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0.3, -0.8),
-            radius: 1.4,
-            colors: [Color(0xFF2A1A4D), Color(0xFF0E0E12)],
-          ),
-        ),
-        child: SafeArea(
+      body: StarBackground(
+  child: SafeArea(
           bottom: false,
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
@@ -300,11 +293,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.diamond_outlined, color: Colors.white, size: 24),
+                        const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
                         const SizedBox(width: 10),
                         const Text('Опалы', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                         const Spacer(),
-                        const Icon(Icons.diamond, color: Color(0xFFB7B7F0), size: 16),
+                        const Icon(Icons.auto_awesome, color: Color(0xFFB7B7F0), size: 16),
                         const SizedBox(width: 4),
                         Text('$_opals', style: const TextStyle(color: Colors.white, fontSize: 14)),
                         const SizedBox(width: 4),
