@@ -116,46 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return pickGroupMemoryMode(context);
   }
 
-  Widget _homeBody(AppState state, List<_HomeItem> items) {
-    final content = items.isEmpty
-        ? Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person_outline, size: 72, color: Colors.blueGrey),
-                const SizedBox(height: 12),
-                const Text('还没有内容，点右上角 + 添加', style: TextStyle(color: Colors.blueGrey)),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CharacterEditorScreen())),
-                  child: const Text('添加第一个角色'),
-                ),
-              ],
-            ),
-          )
-        : _listMode ? _listView(context, state, items) : _gridView(context, state, items);
-
-    final column = SafeArea(
-      bottom: false,
-      child: Column(
-        children: [
-          _header(state),
-          Expanded(child: content),
-        ],
-      ),
-    );
-
-    final bg = state.settings.chatBackground;
-    if (bg.isNotEmpty && File(bg).existsSync()) {
-      return Stack(
-        children: [
-          Positioned.fill(child: Image.file(File(bg), fit: BoxFit.cover)),
-          column,
-        ],
-      );
-    }
-    return column;
-  }
+  
 
   /// 主页自定义头部（最上、在内容列里）
   Widget _header(AppState state) {
@@ -163,7 +124,182 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 40,
       child: Stack(
         alignment: Alignment.center,
+  Widget _homeBody(AppState state, List<_HomeItem> items) {
+  return Scaffold(
+    backgroundColor: const Color(0xFF0E0E12),
+    body: SafeArea(
+      bottom: false,
+      child: Column(
         children: [
+          _pbTopTabs(),
+          _pbSearchBar(),
+          _pbChipsRow(),
+          const SizedBox(height: 8),
+          Expanded(
+            child: items.isEmpty
+                ? _pbEmptyState()
+                : (_listMode
+                    ? _listView(context, state, items)
+                    : _gridView(context, state, items)),
+          ),
+        ],
+      ),
+    ),
+    bottomNavigationBar: _pbBottomNav(),
+  );
+}
+
+Widget _pbTopTabs() {
+  return Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('Подписки',
+            style: TextStyle(color: Colors.white54, fontSize: 17, fontWeight: FontWeight.w500)),
+        const SizedBox(width: 28),
+        Column(
+          children: const [
+            Text('Исследовать',
+                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+            SizedBox(height: 4),
+            SizedBox(
+              width: 24,
+              height: 3,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(2)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _pbSearchBar() {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+    child: Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E24),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 14),
+          Icon(Icons.search, color: Colors.white54, size: 22),
+          SizedBox(width: 8),
+          Text('Поиск', style: TextStyle(color: Colors.white54, fontSize: 15)),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _pbChipsRow() {
+  final chips = ['Для вас', 'От врагов к возлюбленным', 'Кумиры и звёзды', 'Вебтун'];
+  return SizedBox(
+    height: 36,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: chips.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 18),
+      itemBuilder: (_, i) {
+        final selected = i == 0;
+        return Center(
+          child: Text(
+            chips[i],
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.white54,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              fontSize: 14,
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Widget _pbEmptyState() {
+  return const Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.person_outline, size: 72, color: Colors.white24),
+        SizedBox(height: 12),
+        Text('Ещё нет персонажей',
+            style: TextStyle(color: Colors.white54, fontSize: 15)),
+      ],
+    ),
+  );
+}
+
+Widget _pbBottomNav() {
+  return Container(
+    color: const Color(0xFF0E0E12),
+    padding: const EdgeInsets.only(top: 8, bottom: 8),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        const Icon(Icons.home_filled, color: Colors.white, size: 26),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.chat_bubble_outline, color: Colors.white54, size: 26),
+            Positioned(
+              right: -6,
+              top: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE53935),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('99+',
+                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+        Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.add, color: Colors.black, size: 28),
+        ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE53935),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const Icon(Icons.person_outline, color: Colors.white54, size: 26),
+      ],
+    ),
+  );
+}      children: [
           const Center(
             child: Text('mostaron', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
