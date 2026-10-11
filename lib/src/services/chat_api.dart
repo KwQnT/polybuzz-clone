@@ -2,12 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatApi {
-  static const String _model = 'google/gemini-2.0-flash-exp:free';
+  static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
   static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _model = 'deepseek/deepseek-chat-v3.1:free';
+  static const String _model = 'meta-llama/llama-3.3-70b-instruct:free';
 
-  /// Отправляет сообщения в OpenRouter и возвращает ответ.
-  /// [messages] — список вида: [{'role': 'system', 'content': '...'}, ...]
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
       final response = await http.post(
