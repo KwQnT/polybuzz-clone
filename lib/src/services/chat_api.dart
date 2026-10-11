@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatApi {
-  static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
+  static const String _model = 'google/gemini-2.0-flash-exp:free';
   static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
   static const String _model = 'deepseek/deepseek-chat-v3.1:free';
 
