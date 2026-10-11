@@ -1,636 +1,435 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../models/models.dart';
-import '../services/api_client.dart';
 import '../state/app_state.dart';
-import 'widgets/preset_avatar.dart';
-import 'widgets/tag_editors.dart';
-import 'worldbook_screen.dart';
-import 'worldbook_picker.dart';
-import 'avatar_crop_screen.dart';
-import '../utils/file_utils.dart';
 
 class CharacterEditorScreen extends StatefulWidget {
-  final Character? character;
-  const CharacterEditorScreen({super.key, this.character});
+  const CharacterEditorScreen({super.key});
 
   @override
   State<CharacterEditorScreen> createState() => _CharacterEditorScreenState();
 }
 
 class _CharacterEditorScreenState extends State<CharacterEditorScreen> {
-  late TextEditingController _name;
-  late TextEditingController _persona;
-  late TextEditingController _personality;
-  late TextEditingController _tone;
-  late TextEditingController _background;
-  late TextEditingController _greeting;
-  late TextEditingController _chatBg;
-  late TextEditingController _scenario;
-  late TextEditingController _exampleDialogue;
-  late TextEditingController _creatorNotes;
-  late TextEditingController _systemPrompt;
-  late TextEditingController _postHistory;
-  late TextEditingController _creator;
-  late TextEditingController _charVersion;
-  late TextEditingController _genText;
-  List<String> _altGreetings = [];
-  List<String> _tags = [];
-  late TextEditingController _model;
-  late TextEditingController _uname;
-  late TextEditingController _ugender;
-  late TextEditingController _urelation;
-  late TextEditingController _ubg;
-  // 独立角色设置
-  int _charCtx = 20;
-  int _charMemLimit = 500;
-  int _charAutoEvery = 6;
-  bool _charMemAutoPrune = true;
-  bool _charMemEnabled = true;
-  bool _charRealSense = true;
-  String _avatar = '';
-  String _providerId = '';
-  String _replyStyle = 'default';
-  List<String> _worldbookIds = [];
-  bool _busy = false;
+  final _nameController = TextEditingController();
+  final _introController = TextEditingController();
+  final _greetingController = TextEditingController();
+  final _greetingFocus = FocusNode();
 
-  // 用于撤销 AI 生成
-  Map<String, String?> _beforeGen = {};
-  bool _canUndo = false;
-  late final String _charId;
-
-  @override
-  void initState() {
-    super.initState();
-    _charId = widget.character?.id ?? DateTime.now().microsecondsSinceEpoch.toString();
-    final c = widget.character;
-    _name = TextEditingController(text: c?.name ?? '');
-    _persona = TextEditingController(text: c?.persona ?? '');
-    _personality = TextEditingController(text: c?.personality ?? '');
-    _tone = TextEditingController(text: c?.tone ?? '');
-    _background = TextEditingController(text: c?.background ?? '');
-    _greeting = TextEditingController(text: c?.greeting ?? '');
-    _chatBg = TextEditingController(text: c?.chatBackground ?? '');
-    _scenario = TextEditingController(text: c?.scenario ?? '');
-    _exampleDialogue = TextEditingController(text: c?.exampleDialogue ?? '');
-    _creatorNotes = TextEditingController(text: c?.creatorNotes ?? '');
-    _systemPrompt = TextEditingController(text: c?.systemPrompt ?? '');
-    _postHistory = TextEditingController(text: c?.postHistoryInstructions ?? '');
-    _creator = TextEditingController(text: c?.creator ?? '');
-    _charVersion = TextEditingController(text: c?.characterVersion ?? '');
-    _genText = TextEditingController();
-    _altGreetings = List.of(c?.alternateGreetings ?? []);
-    _tags = List.of(c?.tags ?? []);
-    _model = TextEditingController(text: c?.model ?? '');
-    _replyStyle = c?.replyStyle ?? 'default';
-    _avatar = c?.avatar ?? '';
-    _providerId = c?.providerId ?? '';
-    _worldbookIds = List.of(c?.worldbookIds ?? []);
-    final s = context.read<AppState>().settings;
-    _uname = TextEditingController(text: c?.userName.isNotEmpty == true ? c!.userName : s.personaName);
-    _ugender = TextEditingController(text: c?.userGender.isNotEmpty == true ? c!.userGender : s.personaGender);
-    _urelation = TextEditingController(text: c?.userRelation.isNotEmpty == true ? c!.userRelation : s.personaRelation);
-    _ubg = TextEditingController(text: c?.userBackground.isNotEmpty == true ? c!.userBackground : s.personaBackground);
-    // 独立角色设置（默认用主设置）
-    final cs = c?.settings ?? {};
-    _charCtx = cs['context_turns'] is int ? cs['context_turns'] as int : s.contextTurns;
-    _charMemLimit = cs['memory_limit'] is int ? cs['memory_limit'] as int : s.memoryLimit;
-    _charAutoEvery = cs['auto_memory_every'] is int ? cs['auto_memory_every'] as int : s.autoMemoryEvery;
-    _charMemAutoPrune = cs['memory_auto_prune'] is bool ? cs['memory_auto_prune'] as bool : s.memoryAutoPrune;
-    _charMemEnabled = cs['memory_enabled'] is bool ? cs['memory_enabled'] as bool : s.memoryEnabled;
-    _charRealSense = cs['real_sense'] is bool ? cs['real_sense'] as bool : s.realSense;
-  }
+  String _gender = 'Мужской';
+  String _visibility = 'Публичный';
+  bool _agreed = false;
+  String? _avatarPath;
 
   @override
   void dispose() {
-    for (final t in [_name, _persona, _personality, _tone, _background, _greeting, _chatBg, _scenario, _exampleDialogue, _creatorNotes, _systemPrompt, _postHistory, _creator, _charVersion, _genText, _model, _uname, _ugender, _urelation, _ubg]) {
-      t.dispose();
-    }
+    _nameController.dispose();
+    _introController.dispose();
+    _greetingController.dispose();
+    _greetingFocus.dispose();
     super.dispose();
   }
 
-  ProviderConfig? _resolveProvider(AppState state) =>
-      state.getProviderById(_providerId.isEmpty ? null : _providerId);
-
-  Future<void> _generateCharacter(AppState state) async {
-    final desc = _genText.text.trim();
-    if (desc.isEmpty) {
-      _toast('请先填写角色描述');
-      return;
-    }
-    final p = _resolveProvider(state);
-    if (p == null) {
-      _toast('请先在设置中添加一个可用接口');
-      return;
-    }
-    // 记录生成前状态用于撤销
-    _beforeGen = {
-      'name': _name.text,
-      'persona': _persona.text,
-      'personality': _personality.text,
-      'tone': _tone.text,
-      'background': _background.text,
-      'greeting': _greeting.text,
-      'scenario': _scenario.text,
-      'exampleDialogue': _exampleDialogue.text,
-    };
-    setState(() => _busy = true);
-    try {
-      final prompt =
-          '你是角色卡生成器。根据描述生成一个角色，严格返回 JSON（不要多余文字），字段：name, persona, personality, tone, background, greeting(开场白,一句话), scenario(场景设定), exampleDialogue(示例对话,一段角色扮演对话示例)。\n描述：$desc\n仅返回 JSON。';
-      final reply = await ApiClient().completeChat(
-        baseUrl: p.baseUrl,
-        apiKey: p.apiKey,
-        model: _model.text.isNotEmpty ? _model.text : p.model,
-        messages: [
-          {'role': 'system', 'content': '你是角色卡生成器，只输出 JSON。'},
-          {'role': 'user', 'content': prompt},
-        ],
-      );
-      final obj = jsonDecode(_stripJson(reply)) as Map<String, dynamic>;
-      if (mounted) {
-        setState(() {
-          _name.text = obj['name']?.toString() ?? _name.text;
-          _persona.text = obj['persona']?.toString() ?? '';
-          _personality.text = obj['personality']?.toString() ?? '';
-          _tone.text = obj['tone']?.toString() ?? '';
-          _background.text = obj['background']?.toString() ?? '';
-          _greeting.text = obj['greeting']?.toString() ?? '';
-          _scenario.text = obj['scenario']?.toString() ?? '';
-          _exampleDialogue.text = obj['exampleDialogue']?.toString() ?? '';
-          _canUndo = true;
-        });
-      }
-    } catch (e) {
-      _toast('生成失败: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _undoGenerate() {
-    setState(() {
-      _name.text = _beforeGen['name'] ?? '';
-      _persona.text = _beforeGen['persona'] ?? '';
-      _personality.text = _beforeGen['personality'] ?? '';
-      _tone.text = _beforeGen['tone'] ?? '';
-      _background.text = _beforeGen['background'] ?? '';
-      _greeting.text = _beforeGen['greeting'] ?? '';
-      _scenario.text = _beforeGen['scenario'] ?? '';
-      _exampleDialogue.text = _beforeGen['exampleDialogue'] ?? '';
-      _canUndo = false;
-    });
-  }
-
-  String _stripJson(String s) {
-    var t = s.trim();
-    if (t.startsWith('```')) {
-      final i = t.indexOf('\n');
-      if (i >= 0) t = t.substring(i + 1);
-      if (t.endsWith('```')) t = t.substring(0, t.length - 3);
-      t = t.trim();
-    }
-    final start = t.indexOf('{');
-    final end = t.lastIndexOf('}');
-    if (start >= 0 && end > start) t = t.substring(start, end + 1);
-    return t;
-  }
-
   Future<void> _pickAvatar() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (r != null && r.files.isNotEmpty) {
-      final path = r.files.first.path ?? '';
-      if (path.isEmpty) return;
-      final cropped = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(builder: (_) => AvatarCropScreen(imagePath: path)),
-      );
-      if (cropped != null && mounted) setState(() => _avatar = cropped);
-    }
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512);
+    if (file != null) setState(() => _avatarPath = file.path);
   }
 
-  Future<void> _save(AppState state) async {
-    final name = _name.text.trim();
-    if (name.isEmpty) {
-      _toast('请填写角色名');
-      return;
-    }
-    final id = _charId;
-    final c = Character(
-      id: id,
-      name: name,
-      avatar: _avatar,
-      persona: _persona.text.trim(),
-      personality: _personality.text.trim(),
-      tone: _tone.text.trim(),
-      background: _background.text.trim(),
-      greeting: _greeting.text.trim(),
-      chatBackground: _chatBg.text.trim(),
-      scenario: _scenario.text.trim(),
-      exampleDialogue: _exampleDialogue.text.trim(),
-      creatorNotes: _creatorNotes.text.trim(),
-      systemPrompt: _systemPrompt.text.trim(),
-      postHistoryInstructions: _postHistory.text.trim(),
-      alternateGreetings: _altGreetings,
-      tags: _tags,
-      creator: _creator.text.trim(),
-      characterVersion: _charVersion.text.trim(),
-      providerId: _providerId.isEmpty ? null : _providerId,
-      model: _model.text.trim().isEmpty ? null : _model.text.trim(),
-      replyStyle: _replyStyle,
-      worldbookIds: _worldbookIds,
-      settings: {
-        'context_turns': _charCtx,
-        'memory_limit': _charMemLimit,
-        'auto_memory_every': _charAutoEvery,
-        'memory_auto_prune': _charMemAutoPrune,
-        'memory_enabled': _charMemEnabled,
-        'real_sense': _charRealSense,
-      },
-      userName: _uname.text.trim(),
-      userGender: _ugender.text.trim(),
-      userRelation: _urelation.text.trim(),
-      userBackground: _ubg.text.trim(),
-      createdAt: widget.character?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
-    );
-    if (widget.character == null) {
-      await state.addCharacter(c);
-    } else {
-      await state.updateCharacter(c);
-    }
-    // 不再改主设置；身份/设置独立存储在角色上
-    if (mounted) Navigator.pop(context);
+  void _insertIntoGreeting(String text) {
+    final current = _greetingController.text;
+    final selection = _greetingController.selection;
+    final cursor = selection.isValid ? selection.start : current.length;
+    final newText = current.substring(0, cursor) + text + current.substring(cursor);
+    _greetingController.text = newText;
+    _greetingController.selection = TextSelection.collapsed(offset: cursor + text.length);
+    _greetingFocus.requestFocus();
   }
 
   void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(milliseconds: 1500),
+    ));
+  }
+
+  void _saveDraft() {
+    _toast('Черновик сохранён');
+  }
+
+  void _generateAi() {
+    _toast('ИИ-генерация скоро');
+  }
+
+  void _save() async {
+    if (_nameController.text.trim().length < 3) {
+      _toast('Имя должно быть от 3 до 36 символов');
+      return;
+    }
+    if (!_agreed) {
+      _toast('Подтвердите согласие');
+      return;
+    }
+    final state = context.read<AppState>();
+    await state.createCharacter(
+      name: _nameController.text.trim(),
+      description: _introController.text.trim(),
+      greeting: _greetingController.text.trim(),
+      avatarPath: _avatarPath,
+    );
+    if (mounted) {
+      _toast('Персонаж создан');
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final p = _resolveProvider(state);
     return Scaffold(
+      backgroundColor: const Color(0xFF0E0E12),
       appBar: AppBar(
-        title: Text(widget.character == null ? '创建角色' : '编辑角色'),
-        actions: [IconButton(icon: const Icon(Icons.check), onPressed: () => _save(state))],
+        backgroundColor: const Color(0xFF0E0E12),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white, size: 24),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Основная информация 1/2',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save_outlined, color: Colors.white, size: 22),
+            onPressed: _saveDraft,
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _avatarSection(state),
-          const SizedBox(height: 12),
-          TextField(controller: _name, decoration: const InputDecoration(labelText: '角色名', prefixIcon: Icon(Icons.badge))),
-          const SizedBox(height: 12),
-          // 回复模式
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('回复模式', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Row(
-                    children: [
-                      Radio<String>(
-                        value: 'default', groupValue: _replyStyle,
-                        onChanged: (v) => setState(() => _replyStyle = v!),
-                      ),
-                      const Text('默认'),
-                      const SizedBox(width: 12),
-                      Radio<String>(
-                        value: 'short', groupValue: _replyStyle,
-                        onChanged: (v) => setState(() => _replyStyle = v!),
-                      ),
-                      const Text('简短对话'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _generateCard(state),
-          const SizedBox(height: 12),
-          _field(_persona, '人设', maxLines: 3),
-          _field(_personality, '性格', maxLines: 2),
-          _field(_tone, '语气', maxLines: 2),
-          _field(_background, '背景故事', maxLines: 4),
-          _field(_greeting, '开场白（进入时显示）', maxLines: 2),
-          _field(_scenario, '场景（SillyTavern scenario）', maxLines: 3),
-          _field(_exampleDialogue, '示例对话（SillyTavern mes_example）', maxLines: 4),
-          // 自定义聊天背景（上传图片）
-          Card(
-            child: ListTile(
-              leading: _chatBg.text.isEmpty
-                  ? const Icon(Icons.image)
-                  : CircleAvatar(backgroundImage: FileImage(File(_chatBg.text))),
-              title: const Text('自定义聊天背景'),
-              subtitle: Text(_chatBg.text.isEmpty ? '未设置' : '已设置'),
-              trailing: _chatBg.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: '恢复默认',
-                      onPressed: () => setState(() => _chatBg.text = ''),
-                    )
-                  : null,
-              onTap: () async {
-                final r = await FilePicker.platform.pickFiles(type: FileType.image);
-                if (r != null && r.files.isNotEmpty) {
-                  setState(() => _chatBg.text = r.files.first.path ?? '');
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 你的身份
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('你的身份（默认沿用主设置）', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  _field(_uname, '你的名字', maxLines: 1, pad: false),
-                  _field(_ugender, '你的性别', maxLines: 1, pad: false),
-                  _field(_urelation, '与角色的关系', maxLines: 1, pad: false),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: TextField(
-                      controller: _ubg,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: '你的身份背景'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 模型/Key
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('独立模型 / Key', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _providerId,
-                    decoration: const InputDecoration(labelText: '接口 (Provider)'),
-                    items: [
-                      const DropdownMenuItem<String>(value: '', child: Text('使用默认接口')),
-                      for (final pr in state.providers)
-                        DropdownMenuItem<String>(value: pr.id, child: Text(pr.name)),
-                    ],
-                    onChanged: (v) => setState(() => _providerId = v ?? ''),
-                  ),
-                  const SizedBox(height: 8),
-                  if (p != null && p.models.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      initialValue: p.models.contains(_model.text) ? _model.text : null,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: '模型名', prefixIcon: Icon(Icons.model_training)),
-                      items: [
-                        for (final m in p.models)
-                          DropdownMenuItem<String>(value: m, child: Text(m, overflow: TextOverflow.ellipsis)),
-                      ],
-                      onChanged: (v) => setState(() => _model.text = v ?? ''),
-                    )
-                  else
-                    TextField(
-                      controller: _model,
-                      decoration: const InputDecoration(labelText: '模型名（留空用接口默认）', hintText: 'gpt-4o / deepseek-chat'),
-                    ),
-                  if (p != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text('将使用: ${p.baseUrl} · ${_model.text.isEmpty ? p.model : _model.text}',
-                          style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 世界书（选择全局世界书里启用哪些，可在主设置里管理全局条目）
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.menu_book),
-              title: const Text('选择世界书'),
-              subtitle: Text(
-                _worldbookIds.isEmpty ? '未启用（默认全部不启用）' : '已启用 ${_worldbookIds.length} 条',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final r = await showWorldbookPicker(context, initial: _worldbookIds);
-                if (r == null || !mounted) return;
-                if (r.manage) {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const WorldbookScreen()));
-                  return;
-                }
-                setState(() => _worldbookIds = r.ids);
-              },
-            ),
-          ),
+          // Аватар
+          const _Label('Аватар', required: true),
           const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorldbookScreen())),
-            icon: const Icon(Icons.settings, size: 18),
-            label: const Text('管理全局世界书'),
-          ),
-          const SizedBox(height: 8),
-          // 独立角色设置
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              leading: const Icon(Icons.tune),
-              title: const Text('角色设置', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('独立设置，默认沿用主设置'),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              children: [
-                Row(
+          Row(
+            children: [
+              Container(
+                width: 110, height: 110,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A33),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _avatarPath != null
+                    ? Image.file(File(_avatarPath!), fit: BoxFit.cover)
+                    : const Icon(Icons.face, color: Colors.white24, size: 60),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   children: [
-                    const Text('上下文轮数'),
-                    Expanded(
-                      child: Slider(
-                        value: _charCtx.toDouble().clamp(4, 60),
-                        min: 4,
-                        max: 60,
-                        divisions: 56,
-                        onChanged: (v) => setState(() => _charCtx = v.round()),
-                      ),
-                    ),
-                    Text('$_charCtx'),
+                    _avatarButton(Icons.auto_awesome, 'Создать ИИ', _generateAi),
+                    const SizedBox(height: 8),
+                    _avatarButton(Icons.upload_outlined, 'Загрузить', _pickAvatar),
                   ],
                 ),
-                SwitchListTile(
-                  dense: true,
-                  title: const Text('记忆注入 (AGENTS.md)'),
-                  value: _charMemEnabled,
-                  onChanged: (v) => setState(() => _charMemEnabled = v),
-                ),
-                SwitchListTile(
-                  dense: true,
-                  title: const Text('感应现实(知道现实日期时间)'),
-                  value: _charRealSense,
-                  onChanged: (v) => setState(() => _charRealSense = v),
-                ),
-                SwitchListTile(
-                  dense: true,
-                  title: const Text('记忆达上限自动删除'),
-                  value: _charMemAutoPrune,
-                  onChanged: (v) => setState(() => _charMemAutoPrune = v),
-                ),
-                if (_charMemAutoPrune)
-                  Row(
-                    children: [
-                      const Text('记忆上限'),
-                      Expanded(
-                        child: Slider(
-                          value: _charMemLimit.toDouble().clamp(50, 2000),
-                          min: 50,
-                          max: 2000,
-                          divisions: 39,
-                          onChanged: (v) => setState(() => _charMemLimit = v.round()),
-                        ),
-                      ),
-                      Text('$_charMemLimit'),
-                    ],
-                  ),
-                if (_charMemAutoPrune)
-                  Row(
-                    children: [
-                      const Text('自动记忆间隔'),
-                      Expanded(
-                        child: Slider(
-                          value: _charAutoEvery.toDouble().clamp(2, 20),
-                          min: 2,
-                          max: 20,
-                          divisions: 18,
-                          onChanged: (v) => setState(() => _charAutoEvery = v.round()),
-                        ),
-                      ),
-                      Text('$_charAutoEvery条'),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          // SillyTavern 扩展字段
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              leading: const Icon(Icons.description),
-              title: const Text('角色卡扩展字段', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('作者注释 / 系统提示 / 备选开场白 / 标签等'),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              children: [
-                _field(_creatorNotes, '作者注释 (creator_notes)', maxLines: 3, pad: false),
-                _field(_systemPrompt, '系统提示 (system_prompt)', maxLines: 3),
-                _field(_postHistory, '历史后置指令 (post_history_instructions)', maxLines: 3),
-                _field(_creator, '作者 (creator)', maxLines: 1),
-                _field(_charVersion, '角色版本 (character_version)', maxLines: 1),
-                TagEditors(
-                  values: _tags,
-                  label: '标签 (tags)',
-                  onChange: (v) => setState(() => _tags = v),
-                ),
-                TagEditors(
-                  values: _altGreetings,
-                  label: '备选开场白 (alternate_greetings)',
-                  onChange: (v) => setState(() => _altGreetings = v),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _avatarSection(AppState state) {
-    return Center(
-      child: Column(
-        children: [
-          SizedBox(
-            width: 84,
-            height: 84,
-            child: _avatar.isEmpty
-                ? CircleAvatar(child: Text(_name.text.isEmpty ? '?' : _name.text.substring(0, 1)))
-                : _avatar.startsWith('asset:')
-                    ? PresetAvatar(id: _avatar.substring(6), size: 84)
-                    : CircleAvatar(backgroundImage: FileImage(File(_avatar))),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            children: [
-              for (final id in ['a', 'b', 'c', 'd', 'e', 'f'])
-                GestureDetector(
-                    onTap: () => setState(() => _avatar = 'asset:$id'),
-                    child: PresetAvatar(id: id, size: 34)),
-              TextButton.icon(
-                  icon: const Icon(Icons.image, size: 16), label: const Text('选择图片'), onPressed: _pickAvatar),
+              ),
             ],
           ),
+          const SizedBox(height: 24),
+
+          // Имя
+          const _Label('Имя', required: true),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _nameController,
+            maxLength: 36,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Назовите своего персонажа',
+              hintStyle: const TextStyle(color: Colors.white38),
+              counterStyle: const TextStyle(color: Colors.white54),
+              filled: true,
+              fillColor: const Color(0xFF1A1A22),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+          const _HintText('Пожалуйста, введите от 3 до 36 символов. Только буквы, цифры, подчеркивание, дефис и пробел.'),
+          const SizedBox(height: 20),
+
+          // Пол
+          const _Label('Пол', required: true),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _genderBtn('Мужской'),
+              const SizedBox(width: 8),
+              _genderBtn('Женский'),
+              const SizedBox(width: 8),
+              _genderBtn('Небинарный'),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Вступление
+          const _Label('Вступление.', required: true, suffix: '(публично видно)'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _introController,
+            maxLines: 4,
+            maxLength: 1000,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'например, {char} — доблестный рыцарь, молчаливый и сдержанный.',
+              hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+              counterStyle: const TextStyle(color: Colors.white54),
+              filled: true,
+              fillColor: const Color(0xFF1A1A22),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const _HintText('Дайте вашему персонажу краткое описание.'),
+          const SizedBox(height: 20),
+
+          // Приветствия
+          const _Label('Приветствия', required: true),
+          const SizedBox(height: 8),
+
+          // Панель вставки разметки
+          Row(
+            children: [
+              _markupButton('* Text *', () => _insertIntoGreeting('**')),
+              const SizedBox(width: 8),
+              _markupButton('Перс.', () => _insertIntoGreeting('{char}')),
+              const SizedBox(width: 8),
+              _markupButton('Пользователь', () => _insertIntoGreeting('{user}')),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          TextField(
+            controller: _greetingController,
+            focusNode: _greetingFocus,
+            maxLines: 5,
+            maxLength: 3000,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'например *Тускло освещенная комната...* Кто посмеет войти в мои владения?',
+              hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+              counterStyle: const TextStyle(color: Colors.white54),
+              filled: true,
+              fillColor: const Color(0xFF1A1A22),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const _HintText('Создайте приветствие, которое определит ваш характер.'),
+
+          // Генерировать
+          const SizedBox(height: 12),
+          Center(
+            child: InkWell(
+              onTap: _generateAi,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Генерировать', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.monetization_on, color: Color(0xFFE8C97B), size: 18),
+                    const SizedBox(width: 4),
+                    const Text('200', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Разрешение
+          const _Label('Разрешение', required: true),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _radio('Публичный', _visibility == 'Публичный', () => setState(() => _visibility = 'Публичный')),
+              const SizedBox(width: 24),
+              _radio('Приватный', _visibility == 'Приватный', () => setState(() => _visibility = 'Приватный')),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Согласие
+          Row(
+            children: [
+              Checkbox(
+                value: _agreed,
+                onChanged: (v) => setState(() => _agreed = v ?? false),
+                activeColor: const Color(0xFF7B6CF6),
+                side: const BorderSide(color: Colors.white54),
+              ),
+              const Expanded(
+                child: Text(
+                  'Я подтверждаю, что мой Персонаж не нарушает права на изображение, интеллектуальную собственность или любые другие права.',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const _HintText('Предполагается, что все персонажи на платформе являются совершеннолетними (18+).'),
+          const SizedBox(height: 24),
+
+          // Кнопка Сохранить
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7B6CF6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              ),
+              child: const Text('Сохранить и Далее',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  Widget _generateCard(AppState state) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _avatarButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A22),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
           children: [
-            const Text('用文字快速生成角色（需已配置接口）', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _genText,
-              maxLines: 2,
-              decoration: const InputDecoration(hintText: '例：一个活泼调皮的猫娘，喜欢捉弄主人，傲娇', prefixIcon: Icon(Icons.auto_awesome)),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (_canUndo)
-                  TextButton.icon(
-                      icon: const Icon(Icons.undo), label: const Text('撤销生成'), onPressed: _undoGenerate),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  icon: _busy
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.auto_awesome),
-                  label: Text(_busy ? '生成中...' : '生成角色'),
-                  onPressed: _busy ? null : () => _generateCharacter(state),
-                ),
-              ],
-            ),
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
           ],
         ),
       ),
     );
   }
 
-  Widget _field(TextEditingController c, String label, {int maxLines = 1, bool pad = true}) {
+  Widget _markupButton(String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _genderBtn(String label) {
+    final active = _gender == label;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _gender = label),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF2A2A3D) : const Color(0xFF1A1A22),
+            borderRadius: BorderRadius.circular(10),
+            border: active ? Border.all(color: const Color(0xFF7B6CF6), width: 1.5) : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white70, fontSize: 13)),
+        ),
+      ),
+    );
+  }
+
+  Widget _radio(String label, bool active, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 20, height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: active ? const Color(0xFF7B6CF6) : Colors.white54, width: 2),
+            ),
+            child: active
+                ? Center(
+                    child: Container(
+                      width: 10, height: 10,
+                      decoration: const BoxDecoration(color: Color(0xFF7B6CF6), shape: BoxShape.circle),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String text;
+  final bool required;
+  final String? suffix;
+  const _Label(this.text, {this.required = false, this.suffix});
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(text: text, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+          if (required)
+            const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFE53935), fontSize: 15, fontWeight: FontWeight.w700)),
+          if (suffix != null)
+            TextSpan(text: ' $suffix', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HintText extends StatelessWidget {
+  final String text;
+  const _HintText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: pad ? 12 : 6),
-      child: TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label)),
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: Colors.white38, size: 14),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          ),
+        ],
+      ),
     );
   }
 }

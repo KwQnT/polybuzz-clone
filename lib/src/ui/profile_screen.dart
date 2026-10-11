@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'personal_info_screen.dart';
+import 'widgets/star_background.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +15,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _tabs = ['Персонажи', 'Веб-комиксы', 'Галерея', 'Коллекция'];
 
   String _userName = 'Чико';
+  String _avatarPath = '';       
   String _subscription = 'Нет';
   int _coins = 15;
   int _opals = 0;
@@ -31,14 +34,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openPersonalInfo() async {
-    final result = await Navigator.push<Map<String, String>>(
-      context,
-      MaterialPageRoute(builder: (_) => PersonalInfoScreen(initialName: _userName)),
-    );
-    if (result != null && result['name'] != null) {
-      setState(() => _userName = result['name']!);
-    }
+  final result = await Navigator.push<Map<String, String>>(
+    context,
+    MaterialPageRoute(builder: (_) => PersonalInfoScreen(initialName: _userName)),
+  );
+  if (result != null) {
+    setState(() {
+      if (result['name'] != null) _userName = result['name']!;
+      if (result['avatarPath'] != null) _avatarPath = result['avatarPath']!;
+    });
   }
+}
 
   void _openBuyCoins() {
     showModalBottomSheet(
