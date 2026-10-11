@@ -269,6 +269,17 @@ Widget _pbBottomNav() {
         InkWell(
   onTap: () => Navigator.push(
     context,
+    MaterialPageRoute(builder: (_) => const CreateHubScreen()),
+  ),
+  child: Container(
+    width: 44, height: 44,
+    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+    child: const Icon(Icons.add, color: Colors.black, size: 28),
+  ),
+),
+        InkWell(
+  onTap: () => Navigator.push(
+    context,
     MaterialPageRoute(builder: (_) => const ExploreScreen()),
   ),
   child: Stack(
