@@ -18,6 +18,7 @@ import 'widgets/avatars.dart';
 import 'widgets/character_actions.dart';
 import 'chats_screen.dart';
 import 'create_hub_screen.dart';
+import 'explore_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -266,39 +267,27 @@ Widget _pbBottomNav() {
           ),
         ),
         InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateHubScreen()),
-          ),
-          child: Container(
-            width: 44, height: 44,
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: const Icon(Icons.add, color: Colors.black, size: 28),
-          ),
-        ),
-        InkWell(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Рейтинги — скоро')),
-            );
-          },
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
-              Positioned(
-                right: -2, top: -2,
-                child: Container(
-                  width: 8, height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE53935),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const ExploreScreen()),
+  ),
+  child: Stack(
+    clipBehavior: Clip.none,
+    children: [
+      const Icon(Icons.explore_outlined, color: Colors.white54, size: 26),
+      Positioned(
+        right: -2, top: -2,
+        child: Container(
+          width: 8, height: 8,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE53935),
+            shape: BoxShape.circle,
           ),
         ),
+      ),
+    ],
+  ),
+),
         InkWell(
           onTap: () => Navigator.push(
             context,
