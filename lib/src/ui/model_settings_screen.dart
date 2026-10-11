@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class SettingsScreen extends StatefulWidget {
+class ModelSettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  State<ModelSettingsScreen> createState() => _ModelSettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
   String _language = 'RU';
   bool _fontSize = true;
   bool _voice = true;
