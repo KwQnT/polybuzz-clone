@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class ChatApi {
   static const String _apiKey = String.fromEnvironment('CHUTES_KEY', defaultValue: '');
   static const String _baseUrl = 'https://llm.chutes.ai/v1/chat/completions';
-  static const String _model = 'chutesai/Llama-3.1-405B-Instruct-FP8';
+  static const String _model = 'unsloth/Mistral-Nemo-Instruct-2407-TEE';
 
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
