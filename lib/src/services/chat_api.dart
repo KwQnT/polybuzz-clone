@@ -1,10 +1,11 @@
-import 'dart:convert';
+cd ~/mostaron
+nano lib/src/services/chat_api.dartimport 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatApi {
   static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
   static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _model = 'cognitivecomputations/dolphin-mixtral-8x22b';
+  static const String _model = 'deepseek/deepseek-chat-v3.1:free';
 
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
