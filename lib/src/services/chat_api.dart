@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class ChatApi {
   static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
   static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _model = 'meta-llama/llama-3.3-70b-instruct:free';
+  static const String _model = 'cognitivecomputations/dolphin-mixtral-8x22b';
 
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
