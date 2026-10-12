@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 class ChatApi {
   static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
   static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _model = 'deepseek/deepseek-chat-v3.1:free';
+  static const String _model = 'sao10k/l3-lunaris-8b:free';
 
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
