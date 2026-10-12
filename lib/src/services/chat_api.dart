@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatApi {
-  static const String _apiKey = String.fromEnvironment('OPENROUTER_KEY', defaultValue: '');
-  static const String _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _model = 'google/gemini-2.0-flash-exp:free';
+  static const String _apiKey = String.fromEnvironment('CHUTES_KEY', defaultValue: '');
+  static const String _baseUrl = 'https://llm.chutes.ai/v1/chat/completions';
+  static const String _model = 'chutesai/Llama-3.1-405B-Instruct-FP8';
 
   static Future<String> sendMessage(List<Map<String, String>> messages) async {
     try {
@@ -13,8 +13,6 @@ class ChatApi {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'https://github.com/KwQnT/polybuzz-clone',
-          'X-Title': 'PolyBuzz Clone',
         },
         body: jsonEncode({
           'model': _model,

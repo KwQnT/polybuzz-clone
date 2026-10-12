@@ -14,7 +14,7 @@ jobs:
           flutter-version: '3.47.7'
           channel: 'stable'
       - run: flutter pub get
-      - run: flutter build apk --release --dart-define=OPENROUTER_KEY=${{ secrets.OPENROUTER_KEY }}
+      - run: flutter build apk --release --dart-define=CHUTES_KEY=${{ secrets.CHUTES_KEY }}
       - run: ls -la build/app/outputs/flutter-apk/
       - uses: actions/upload-artifact@v4
         with:
